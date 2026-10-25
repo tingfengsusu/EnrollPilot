@@ -26,8 +26,9 @@
 | `docs/报名结算系统-设计.md` | **唯一设计事实源**（数据模型/双入口/结算口径/分期） |
 | `gateway/` | 飞书长连接接入（自 FormPilot 迁移：收消息、下载附件、多事件合并） |
 | `core/` | 纯逻辑基建（自 FormPilot 迁移：身份证校验位、字典别名归一化） |
-| `enroll/` | 业务层：`bitable.py` 多维表格客户端 / `records.py` 幂等合并 / `instructions.py` 群指令 / `settlement.py` 结算核对 / `demo_store.py` 离线库 / `service.py` 指令执行 |
-| `tools/enroll_bot.py` | CLI：`--demo` 离线闭环 / `--check-config` 配置体检 |
+| `enroll/` | 业务层：`bitable.py` 多维表格客户端 / `bitable_store.py` bitable 后端存储 / `records.py` 幂等合并 / `extract.py` 文本抽取（微信交错文本/OCR）/ `intake.py` 登记入库 / `instructions.py` 群指令 / `settlement.py` 结算核对 / `export.py` Excel 导出 / `demo_store.py` 离线库 / `service.py`+`runner.py` 执行与编排 |
+| `gui/desktop_tool.py` | 桌面登记台（入口B）：剪贴板双模式 → 人工修正 → 与机器人同库同路径 |
+| `tools/enroll_bot.py` | CLI：`--demo` 离线闭环 / `--desktop` 桌面台 / `--listen` 真连长连接 / `--check-config` 配置体检 |
 | `config/enroll.example.yaml` | 配置模板（正式 `enroll.yaml` 已 gitignore） |
 
 ## 快速开始
@@ -44,14 +45,17 @@ python -m venv .venv
 
 ## 实施阶段
 
-- **M1（进行中）**：bitable 客户端 + 记录幂等合并 + 群指令 + 结算核对 —— **离线地基 ✅**
-- **M1 联调**（需凭据）：① 飞书开放平台建企业自建应用（长连接 + `im:message`/`im:resource`/`bitable:app`）；
+- **M1（离线地基 ✅ + 联调就绪）**：bitable 客户端与后端存储 / 记录幂等合并 / 微信交错文本
+  抽取（交叉核对只报警）/ 群指令 / 结算核对 / 收消息编排（`--listen`）——**填上凭据即可真连**
+- **M1 联调**（需凭据，四步）：① 飞书开放平台建企业自建应用（长连接 + `im:message`/`im:resource`/`bitable:app`）；
   ② 按设计文档**手动建五张表**（bitable API 建不了关联字段，须 UI 建）并授权应用；
   ③ `cp config/enroll.example.yaml config/enroll.yaml` 填凭据与表 id（`--check-config` 体检）；
-  ④ 群机器人收图落表 + 回执（收图抽取方案见设计文档 2.0 微信识别实测）。
-- **M2**：桌面剪贴板入口（PyQt5 精简入口 + QClipboard 双模式：图片走 OCR、文本走 LLM 清洗）+ exe
-- **M3**：变更日志三处浮现（群卡片 / 查询指令 / 面板时间线）——日志表与 `records.py` 已就绪
-- **M4**：收款表联调 + 结算日报自动推送 + 名单导出（替代旧表三张手工衍生表）
+  ④ `--listen` 跑起来，收图 OCR 未配置时走「复制图片内容→粘贴文本」兜底（已通）。
+- **M2（桌面入口 v1 ✅）**：`--desktop` 剪贴板双模式登记台，与机器人同库同路径；exe 打包待做（PyInstaller）
+- **M3（日志浮现，部分 ✅）**：变更日志落库 + 群查询指令「记录 <姓名>」+ 桌面详情时间线已通；
+  群卡片渲染待真连联调
+- **M4（导出 ✅ + 推送待联调）**：`export_settlement` 按期结算单 / `export_roster` 按集团·状态名单
+  （替代旧表三张手工衍生表）；结算日报自动推送待真连
 - **P2**：班期驱动的消息提醒、对着报名数据的问答机器人
 
 ## 合规边界
