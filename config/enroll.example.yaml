@@ -1,0 +1,38 @@
+# EnrollPilot 配置（**示例**；复制成 enroll.yaml 后填自己的凭据）
+#
+# 注意：enroll.yaml 已加入 .gitignore（含 App Secret），不要提交。
+#       cp config/enroll.example.yaml config/enroll.yaml
+
+# —— 飞书企业自建应用（事件订阅选「长连接」）——
+# 创建步骤：开放平台 → 创建企业自建应用 → 事件订阅「长连接」+
+#   订阅事件 im.message.receive_v1 → 权限 im:message / im:resource / bitable:app
+#   → 发布并加机器人进群 → 把多维表格「添加文档应用」授权给该应用
+feishu:
+  app_id: ""            # 例如 cli_a1b2c3d4e5f6g7h8
+  app_secret: ""        # 开放平台「凭证与基础信息」里的 App Secret
+  # 消息合并：飞书文本+图片会推成两条事件，收到不完整的消息等这么久（0 = 不合并）
+  merge_hold_seconds: 45
+
+# —— 多维表格（主库，设计文档「双入口一个库」）——
+# app_token = 多维表格网址 base/ 后面那一串
+bitable:
+  app_token: ""
+  tables:               # 五张表的 table_id（表 URL 里 table= 后那串）
+    报名记录: ""
+    收款: ""
+    公司: ""
+    班期: ""
+    变更日志: ""
+
+# —— 结算 ——
+settlement:
+  daily_push: "18:30"   # 每天自动发结算日报到群（M4 实现；现在可用指令「结算」即时出）
+
+# —— 字典（工种/培训类型/人员类别/学历）——
+# 值域全集【待确认】：先从总表 516 行归一化提取，再由业务核对；
+# 文件放 config/options_<字段>.yaml（权威值）与 config/<字段>_aliases.yaml（别名）
+dictionaries:
+  - 工种
+  - 培训类型
+  - 人员类别
+  - 学历

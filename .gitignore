@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# 凭据（example 可提交，正式配置不可）
+config/enroll.yaml
+
+# 运行数据（演示库、截图、临时附件）
+data/*
+!data/.gitkeep
+
+# IDE / 系统
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store

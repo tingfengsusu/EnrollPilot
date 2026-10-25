@@ -1,0 +1,11 @@
+# 核心依赖（刻意保持很轻：本项目不填网页，不依赖 Playwright）
+pyyaml>=6.0          # 配置与字典别名表
+requests>=2.31       # bitable REST（enroll/bitable.py）
+lark-oapi>=1.4       # 飞书长连接事件订阅（gateway/feishu.py）
+
+# 开发/测试
+pytest>=8.0          # 测试双模式之一：pytest tests/；或逐个 python tests/test_x.py
+
+# M2 桌面剪贴板入口才需要（届时再装，保持本仓轻量）：
+# PyQt5>=5.15
+# PyInstaller（打 exe 用）
