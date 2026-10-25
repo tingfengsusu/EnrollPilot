@@ -39,6 +39,30 @@ class DemoStore:
     def records(self) -> List[Dict]:
         return self.tables["报名记录"]
 
+    def companies(self) -> List[Dict]:
+        return self.tables["公司"]
+
+    def find_by_key(self, key: str):
+        from enroll.records import id_key
+        if not key:
+            return None
+        for rec in self.records():
+            if id_key(rec) == key:
+                return rec
+        return None
+
+    def create(self, fields: Dict) -> Dict:
+        rec = dict(fields)
+        self.records().append(rec)
+        return rec
+
+    def update_fields(self, rec: Dict, fields: Dict) -> None:
+        rec.update(fields)
+
+    def log(self, name: str, ctype: str, field: str, old, new,
+            operator: str, source: str) -> None:
+        self._log(name, ctype, field, old, new, operator, source)
+
     def payments_by_key(self) -> Dict[str, List[Dict]]:
         """收款流水按姓名归组（演示库用姓名做关联；真连模式用关联字段 record_id）。"""
         grouped: Dict[str, List[Dict]] = {}

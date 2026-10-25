@@ -1,17 +1,23 @@
-"""EnrollPilot CLI：离线演示 / 配置体检。
+"""EnrollPilot CLI：离线演示 / 配置体检 / 真连长连接。
 
 用法::
 
     # 1) 离线闭环演示（不需要飞书凭据、不联网）：
-    #    种子数据 → 一串群指令（改状态/写日志/收款/结算日报）全程打印
+    #    种子数据 → 群指令（改状态/写日志/收款/结算日报）→ 剪贴板文本登记 → Excel 导出
     python tools/enroll_bot.py --demo
 
     # 2) 配置体检：config/enroll.yaml 是否存在、必填键是否齐
     python tools/enroll_bot.py --check-config
 
-真连模式（长连接 + 真实多维表格）属 M1 联调，见 README「M1 联调清单」——
-前置条件是先在飞书侧手动建好五张表（bitable API 建不了关联字段），再把
-app_token / table_id 填进 config/enroll.yaml。
+    # 3) 桌面登记台（M2 入口B：剪贴板 → 登记同一个库）
+    python tools/enroll_bot.py --desktop
+
+    # 4) 真连模式（长连接收消息 + 真实多维表格）：先 --check-config 通过再跑
+    python tools/enroll_bot.py --listen
+
+真连前置（详见 README「M1 联调清单」）：飞书侧建好五张表（bitable API 建不了
+关联字段，须 UI 建）并授权应用；config/enroll.yaml 填凭据与表 id。
+收图 OCR 未配置时，收到图片会提示"微信复制图片内容→粘贴文本"的人肉兜底。
 """
 from __future__ import annotations
 
@@ -24,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import yaml
 
 from enroll.demo_store import DemoStore
+from enroll.intake import intake_text
 from enroll.instructions import parse
 from enroll.service import execute
 
@@ -40,12 +47,20 @@ _REQUIRED_KEYS = (
     ("bitable", "tables", "变更日志"),
 )
 
+#: 演示用微信「复制图片内容」文本（合成证件号，非真人）
+_DEMO_WECHAT_TEXT = (
+    "姓名\n性别\n出生\n住址\n测试员\n男\n1990\n民族汉\n年1月1日\n"
+    "北京市海淀区清华园1号100084\n公民身份号码\n410102199001010012"
+)
+
 
 def demo_script() -> None:
-    """跑一遍演示闭环，每步打印，全程不联网不写库（内存 DemoStore）。"""
+    """跑一遍演示闭环，每步打印，全程不联网（内存 DemoStore；导出写 data/）。"""
+    from enroll.export import export_roster, export_settlement
+
     store = DemoStore()  # 不传 path → 不落盘
     store.seed()
-    print("== 种子数据（金额结构忠实真实样表：缴费=公司收费+返还）==")
+    print("== ① 种子数据（金额结构忠实真实样表：缴费=公司收费+返还）==")
     print(execute(store, parse("状态"), operator="演示"))
     for text, who in [
         ("张莹 已缴费 700", "业务员A"),   # 改状态 + 落收款流水
@@ -57,7 +72,20 @@ def demo_script() -> None:
         cmd = parse(text)
         print(f"\n> {text}   （{who}）")
         print(execute(store, cmd, operator=who))
-    print("\n== 演示结束：状态/日志/流水/结算全部走的是真实业务函数，只差换 bitable 后端 ==")
+
+    print("\n== ② 剪贴板登记（入口B：微信「复制图片内容」→ 粘贴文本 → 幂等入库）==")
+    print(intake_text(store, _DEMO_WECHAT_TEXT, operator="前台", source="剪贴板"))
+
+    p1 = export_settlement(store, os.path.join(ROOT, "data", "demo_结算单.xlsx"))
+    p2 = export_roster(store, os.path.join(ROOT, "data", "demo_名单.xlsx"),
+                       group="某集团集团")
+    print(f"\n== ③ 导出（旧表三张手工衍生表的系统版）：\n   {p1}\n   {p2} ==")
+    print("\n== 演示结束：登记/状态/日志/流水/结算/导出全是真实业务函数，只差换 bitable 后端 ==")
+
+
+def _load_config() -> dict:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as fh:
+        return yaml.safe_load(fh) or {}
 
 
 def check_config() -> int:
@@ -65,10 +93,8 @@ def check_config() -> int:
         print(f"[缺] {CONFIG_PATH} 不存在。"
               f"先 cp config/enroll.example.yaml config/enroll.yaml 填凭据。")
         return 1
-    with open(CONFIG_PATH, "r", encoding="utf-8") as fh:
-        cfg = yaml.safe_load(fh) or {}
+    cfg = _load_config()
     missing = []
-    node = cfg
     for path in _REQUIRED_KEYS:
         node = cfg
         for key in path:
@@ -83,15 +109,53 @@ def check_config() -> int:
     return 0
 
 
+def listen() -> int:
+    """真连模式：长连接收消息 → 聚合 → 抽取/指令 → bitable → 回推。"""
+    if check_config():
+        return 1
+    from enroll.bitable import BitableClient
+    from enroll.bitable_store import BitableStore
+    from enroll.runner import EnrollRunner
+    from gateway.feishu import FeishuChannel
+
+    cfg = _load_config()
+    feishu, bitable = cfg["feishu"], cfg["bitable"]
+    channel = FeishuChannel(app_id=feishu["app_id"], app_secret=feishu["app_secret"],
+                            attachment_dir=os.path.join(ROOT, "data", "inbox"))
+    client = BitableClient(feishu["app_id"], feishu["app_secret"], bitable["app_token"])
+    store = BitableStore(client, dict(bitable["tables"]))
+    runner = EnrollRunner(store, channel,
+                          hold_seconds=float(feishu.get("merge_hold_seconds", 45)))
+    channel.on_message = runner.on_message
+    print("长连接已启动，等待群消息…（Ctrl+C 退出；图片 OCR 未配置时按提示走文本兜底）")
+    try:
+        channel.start(blocking=True)
+    except KeyboardInterrupt:
+        channel.stop()
+        print("\n已退出")
+    return 0
+
+
+def desktop() -> int:
+    from gui.desktop_tool import main as gui_main
+    return gui_main()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="EnrollPilot 培训报名结算助手")
     ap.add_argument("--demo", action="store_true", help="离线闭环演示（不联网）")
     ap.add_argument("--check-config", action="store_true", help="体检 config/enroll.yaml")
+    ap.add_argument("--desktop", action="store_true", help="桌面登记台（剪贴板入口B）")
+    ap.add_argument("--listen", action="store_true", help="真连长连接（需先 --check-config 通过）")
     args = ap.parse_args()
     if args.demo:
         demo_script()
     elif args.check_config:
         sys.exit(check_config())
+    elif args.desktop:
+        sys.exit(desktop())
+    elif args.listen:
+        sys.exit(listen())
     else:
         ap.print_help()
 

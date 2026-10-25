@@ -2,10 +2,12 @@
 pyyaml>=6.0          # 配置与字典别名表
 requests>=2.31       # bitable REST（enroll/bitable.py）
 lark-oapi>=1.4       # 飞书长连接事件订阅（gateway/feishu.py）
+openpyxl>=3.1        # 结算单/名单 Excel 导出（enroll/export.py）
 
 # 开发/测试
 pytest>=8.0          # 测试双模式之一：pytest tests/；或逐个 python tests/test_x.py
 
-# M2 桌面剪贴板入口才需要（届时再装，保持本仓轻量）：
-# PyQt5>=5.15
-# PyInstaller（打 exe 用）
+# M2 桌面剪贴板入口（gui/desktop_tool.py，入口B）
+PyQt5>=5.15
+# 打 exe 时才装：
+# PyInstaller
