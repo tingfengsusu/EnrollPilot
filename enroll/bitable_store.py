@@ -11,10 +11,37 @@
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 from enroll.records import id_key
 from enroll.demo_store import now_str
+
+#: bitable 日期字段必须是毫秒时间戳；这些业务字段按日期处理
+_DATE_FIELDS = {"出生日期", "登记日期", "时间", "起始日期", "结束日期"}
+
+
+def _to_ms(value):
+    """'YYYY-MM-DD' / 'YYYY-MM-DD HH:MM:SS' → epoch 毫秒；其他原样返回。"""
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return int(datetime.strptime(text, fmt).timestamp() * 1000)
+        except ValueError:
+            continue
+    return value
+
+
+def _prepare(fields: Dict) -> Dict:
+    """落库前转换：剔除内部字段、日期字符串转毫秒时间戳。"""
+    out = {}
+    for k, v in fields.items():
+        if k.startswith("_"):
+            continue
+        out[k] = _to_ms(v) if (k in _DATE_FIELDS and v not in (None, "")) else v
+    return out
 
 
 def _plain(value):
@@ -84,14 +111,14 @@ class BitableStore:
         return None
 
     def create(self, fields: Dict) -> Dict:
-        payload = {k: v for k, v in fields.items() if not k.startswith("_")}
+        payload = _prepare(fields)
         rid = self.client.create_record(self._tid("报名记录"), payload)
         rec = dict(fields)
         rec["_record_id"] = rid
         return rec
 
     def update_fields(self, rec: Dict, fields: Dict) -> None:
-        payload = {k: v for k, v in fields.items() if not k.startswith("_")}
+        payload = _prepare(fields)
         rid = rec.get("_record_id")
         if not rid:
             raise ValueError("记录缺少 _record_id，无法更新（先 records()/find_record() 取回）")
@@ -100,10 +127,10 @@ class BitableStore:
 
     def log(self, name: str, ctype: str, field: str, old, new,
             operator: str, source: str) -> None:
-        self.client.create_record(self._tid("变更日志"), {
+        self.client.create_record(self._tid("变更日志"), _prepare({
             "姓名": name, "时间": now_str(), "操作人": operator,
             "变更类型": ctype, "字段": field, "旧值": "" if old is None else str(old),
-            "新值": "" if new is None else str(new), "触发来源": source})
+            "新值": "" if new is None else str(new), "触发来源": source}))
 
     # ------------------------------------------------------------------
     def set_status(self, name: str, verb: str, field: str,
@@ -122,9 +149,9 @@ class BitableStore:
         rec = self.find_record(name)
         if rec is None:
             return False, f"没有找到「{name}」的报名记录"
-        self.client.create_record(self._tid("收款"), {
+        self.client.create_record(self._tid("收款"), _prepare({
             "姓名": name, "金额": amount, "收款方式": method,
-            "收款人类型": payee, "业务员": operator, "时间": now_str()})
+            "收款人类型": payee, "业务员": operator, "时间": now_str()}))
         old = rec.get("缴费状态", "")
         new = "已退" if amount < 0 else "已缴费"
         self.update_fields(rec, {"缴费状态": new})

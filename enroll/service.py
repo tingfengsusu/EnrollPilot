@@ -5,10 +5,18 @@ demo 模式传 DemoStore，真连模式（M1 联调）换同一接口的 bitable
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 
 from enroll.instructions import USAGE, Command
 from enroll.settlement import render_daily
+
+
+def fmt_time(value) -> str:
+    """bitable 日期字段读回是毫秒时间戳；展示时转可读字符串。"""
+    if isinstance(value, (int, float)) and value > 100_000_000_000:
+        return datetime.fromtimestamp(value / 1000).strftime("%Y-%m-%d %H:%M:%S")
+    return "" if value is None else str(value)
 
 
 class StoreLike(Protocol):
@@ -42,8 +50,10 @@ def execute(store: StoreLike, cmd: Command, operator: str = "系统") -> str:
             return f"「{cmd.name}」暂无变更记录"
         lines = [f"【{cmd.name} 的变更时间线】"]
         for e in rows:
-            lines.append(f"  {e['时间']} {e['字段']}：{e['旧值'] or '（空）'} → {e['新值']}"
-                         f"（{e['操作人']}，{e['触发来源']}）")
+            # bitable 对空字段不返回键，全部用 .get() 安全取值
+            lines.append(f"  {fmt_time(e.get('时间'))} {e.get('字段', '')}："
+                         f"{e.get('旧值') or '（空）'} → {e.get('新值', '')}"
+                         f"（{e.get('操作人', '')}，{e.get('触发来源', '')}）")
         return "\n".join(lines)
     if cmd.action == "query":
         hits = [r for r in store.records()

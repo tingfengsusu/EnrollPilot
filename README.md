@@ -29,6 +29,7 @@
 | `enroll/` | 业务层：`bitable.py` 多维表格客户端 / `bitable_store.py` bitable 后端存储 / `records.py` 幂等合并 / `extract.py` 文本抽取（微信交错文本/OCR）/ `intake.py` 登记入库 / `instructions.py` 群指令 / `settlement.py` 结算核对 / `export.py` Excel 导出 / `demo_store.py` 离线库 / `service.py`+`runner.py` 执行与编排 |
 | `gui/desktop_tool.py` | 桌面登记台（入口B）：剪贴板双模式 → 人工修正 → 与机器人同库同路径 |
 | `tools/enroll_bot.py` | CLI：`--demo` 离线闭环 / `--desktop` 桌面台 / `--listen` 真连长连接 / `--check-config` 配置体检 |
+| `tools/setup_tables.py` | 一键建库：应用身份创建「报名结算」多维表格 + 五张表 + 字段，自动回填配置，`--smoke` 冒烟 |
 | `config/enroll.example.yaml` | 配置模板（正式 `enroll.yaml` 已 gitignore） |
 
 ## 快速开始
@@ -45,17 +46,16 @@ python -m venv .venv
 
 ## 实施阶段
 
-- **M1（离线地基 ✅ + 联调就绪）**：bitable 客户端与后端存储 / 记录幂等合并 / 微信交错文本
-  抽取（交叉核对只报警）/ 群指令 / 结算核对 / 收消息编排（`--listen`）——**填上凭据即可真连**
-- **M1 联调**（需凭据，四步）：① 飞书开放平台建企业自建应用（长连接 + `im:message`/`im:resource`/`bitable:app`）；
-  ② 按设计文档**手动建五张表**（bitable API 建不了关联字段，须 UI 建）并授权应用；
-  ③ `cp config/enroll.example.yaml config/enroll.yaml` 填凭据与表 id（`--check-config` 体检）；
-  ④ `--listen` 跑起来，收图 OCR 未配置时走「复制图片内容→粘贴文本」兜底（已通）。
+- **M1（离线地基 ✅ + 真连联调 ✅）**：bitable 客户端与后端存储 / 记录幂等合并 / 微信交错文本
+  抽取（交叉核对只报警）/ 群指令 / 结算核对 / 收消息编排（`--listen`）——已在真实团队租户完成：
+  应用发布（长连接 + 收消息事件 + 4 项权限）、`setup_tables.py` 建五张表、冒烟测试、
+  真实后端端到端（登记→收款→变更日志→时间线→结算）全部通过。**注意：飞书个人版
+  （`*.user.feishu.cn`）按平台策略不开放自建应用 API（21001），必须用团队/企业租户。**
 - **M2（桌面入口 v1 ✅）**：`--desktop` 剪贴板双模式登记台，与机器人同库同路径；exe 打包待做（PyInstaller）
 - **M3（日志浮现，部分 ✅）**：变更日志落库 + 群查询指令「记录 <姓名>」+ 桌面详情时间线已通；
-  群卡片渲染待真连联调
+  群卡片渲染待消息联调
 - **M4（导出 ✅ + 推送待联调）**：`export_settlement` 按期结算单 / `export_roster` 按集团·状态名单
-  （替代旧表三张手工衍生表）；结算日报自动推送待真连
+  （替代旧表三张手工衍生表）；结算日报自动推送待联调
 - **P2**：班期驱动的消息提醒、对着报名数据的问答机器人
 
 ## 合规边界

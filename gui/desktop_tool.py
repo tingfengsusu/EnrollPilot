@@ -31,6 +31,7 @@ from PyQt5.QtWidgets import (QApplication, QGroupBox, QHBoxLayout, QLabel,
 from enroll.demo_store import DemoStore
 from enroll.extract import looks_like_id_text
 from enroll.intake import intake_text
+from enroll.service import fmt_time
 
 
 def make_store():
@@ -180,8 +181,8 @@ class DesktopTool(QMainWindow):
                  f" + 返还 {rec.get('返还', '-')}",
                  "—— 变更时间线 ——"]
         for e in self.store.timeline(rec.get("姓名", "")):
-            lines.append(f"{e.get('时间')} [{e.get('变更类型', '')}] {e.get('字段')}："
-                         f"{e.get('旧值') or '（空）'} → {e.get('新值')}"
+            lines.append(f"{fmt_time(e.get('时间'))} [{e.get('变更类型', '')}] "
+                         f"{e.get('字段')}：{e.get('旧值') or '（空）'} → {e.get('新值')}"
                          f"（{e.get('操作人')}，{e.get('触发来源')}）")
         self.detail_view.setPlainText("\n".join(lines))
 
