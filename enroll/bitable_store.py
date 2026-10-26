@@ -119,6 +119,10 @@ class BitableStore:
     def pricing(self) -> List[Dict]:
         return self._rows("收费标准") if "收费标准" in self.tables_cfg else []
 
+    def payments_raw(self) -> List[Dict]:
+        """原始收款行（保留 业务员 / 关联记录 结构，供业务员账使用）。"""
+        return self._rows_raw("收款")
+
     def counts(self) -> Dict[str, int]:
         return {name: len(self._rows(name)) for name in self.tables_cfg}
 

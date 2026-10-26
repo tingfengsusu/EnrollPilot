@@ -42,6 +42,11 @@ def test_set_status():
     assert parse("李蕾 已缴费").amount is None
 
 
+def test_sales_command():
+    assert parse("业务员账").action == "sales"
+    assert parse("业务员对账").action == "sales"
+
+
 def test_unknown_returns_none():
     assert parse("") is None
     assert parse(None) is None
@@ -62,6 +67,7 @@ if __name__ == "__main__":
     test_simple_commands()
     test_set_status()
     test_set_status_with_qualifier()
+    test_sales_command()
     test_unknown_returns_none()
     test_two_char_and_four_char_names()
     print("ok: test_instructions")

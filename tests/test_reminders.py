@@ -41,6 +41,20 @@ def test_session_reminder_one_day_before():
     assert not any("26.8.1 期" in i for i in items)
 
 
+def test_session_closing_reminder():
+    """班期已考完仍有未收齐 → 收尾提醒；已收齐/未考完不报。"""
+    today = date(2026, 7, 10)
+    sessions = [{"班期名称": "26.7.1 期", "考试日期": "2026-07-01"},
+                {"班期名称": "26.7.20 期", "考试日期": "2026-07-20"}]
+    records = [{"姓名": "李蕾", "班期": "26.7.1 期", "缴费状态": "未收"},
+               {"姓名": "张莹", "班期": "26.7.1 期", "缴费状态": "已缴费"},
+               {"姓名": "王五", "班期": "26.7.20 期", "缴费状态": "未收"}]
+    items = due_reminders(records, sessions, today)
+    assert any("26.7.1 期" in i and "未收齐" in i and "李蕾" in i for i in items)
+    assert not any("26.7.20 期" in i and "未收齐" in i for i in items)   # 还没考
+    assert not any("张莹" in i for i in items)                          # 已收齐
+
+
 def test_render():
     assert "没有到期" in render_reminders([])
     assert "⚠" in render_reminders(["缴费提醒：李蕾"])
@@ -50,5 +64,6 @@ if __name__ == "__main__":
     test_to_date_formats()
     test_unpaid_reminder()
     test_session_reminder_one_day_before()
+    test_session_closing_reminder()
     test_render()
     print("ok: test_reminders")

@@ -58,6 +58,42 @@ def check_record(rec: Dict, payments: List[Dict]) -> List[str]:
     return issues
 
 
+def salesperson_accounts(records: List[Dict], payments: List[Dict],
+                         payment_links, key_func=None) -> Dict[str, Dict]:
+    """业务员三栏账：代收（流水合计）/ 应上缴（公司收费）/ 应返还（返还）。
+
+    ``payment_links(payment)`` 返回该笔流水关联的记录键；``key_func(rec)`` 是记录键
+    （真连用 _record_id，演示库用姓名）。同一记录被多笔流水关联时，应上缴/返还只计一次。
+    """
+    key_of = key_func or (lambda rec: rec.get("姓名", ""))
+    by_key = {key_of(r): r for r in records or []}
+    accounts: Dict[str, Dict] = {}
+    for pay in payments or []:
+        who = str(pay.get("业务员") or "未归属")
+        acc = accounts.setdefault(who, {"代收": 0.0, "应上缴": 0.0,
+                                        "应返还": 0.0, "笔数": 0, "_seen": set()})
+        acc["代收"] += _num(pay.get("金额"))
+        acc["笔数"] += 1
+        for key in payment_links(pay):
+            rec = by_key.get(key)
+            if rec is None or key in acc["_seen"]:
+                continue
+            acc["_seen"].add(key)
+            acc["应上缴"] += _num(rec.get("公司收费"))
+            acc["应返还"] += _num(rec.get("返还"))
+    return accounts
+
+
+def render_accounts(accounts: Dict[str, Dict]) -> str:
+    if not accounts:
+        return "业务员账：暂无收款流水"
+    lines = ["【业务员账】（代收 / 应上缴 / 应返还）"]
+    for who, acc in sorted(accounts.items()):
+        lines.append(f"{who}：代收 {acc['代收']:g} / 应上缴 {acc['应上缴']:g} / "
+                     f"应返还 {acc['应返还']:g}（{acc['笔数']} 笔）")
+    return "\n".join(lines)
+
+
 def summarize(records: List[Dict], payments_by_key: Dict[str, List[Dict]],
               date: str = "", key_func=None) -> Dict:
     """按结算口径汇总。``date`` 非空时只统计 ``登记日期`` 匹配的记录。

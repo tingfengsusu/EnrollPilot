@@ -60,6 +60,22 @@ def test_no_price_standard_check():
     assert not any("标准价" in s for s in check_record(rec, []))
 
 
+def test_salesperson_accounts():
+    """三栏账：代收/应上缴/应返还；同一记录多笔流水只计一次上缴与返还。"""
+    from enroll.settlement import render_accounts, salesperson_accounts
+    recs = [{"_record_id": "r1", "姓名": "李蕾", "公司收费": 400, "返还": 300}]
+    pays = [{"业务员": "业务员A", "金额": 700,
+             "关联报名记录": [{"record_ids": ["r1"]}]},
+            {"业务员": "业务员A", "金额": 200,
+             "关联报名记录": [{"record_ids": ["r1"]}]}]
+    links = lambda p: [x for it in p["关联报名记录"] for x in it["record_ids"]]
+    acc = salesperson_accounts(recs, pays, links, lambda r: r["_record_id"])
+    a = acc["业务员A"]
+    assert (a["代收"], a["应上缴"], a["应返还"], a["笔数"]) == (900.0, 400.0, 300.0, 2)
+    text = render_accounts(acc)
+    assert "业务员A：代收 900" in text and "应上缴 400" in text
+
+
 def test_render_daily():
     records = [_rec(), _rec(姓名="张莹")]
     text = render_daily(records, {"李蕾": [{"金额": 700}]}, date="6月21日")
@@ -76,5 +92,6 @@ if __name__ == "__main__":
     test_summarize_only_counts_paid()
     test_summarize_filters_by_date()
     test_no_price_standard_check()
+    test_salesperson_accounts()
     test_render_daily()
     print("ok: test_settlement")

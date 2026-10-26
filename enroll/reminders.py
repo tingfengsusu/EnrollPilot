@@ -62,6 +62,20 @@ def due_reminders(records: List[Dict], sessions: List[Dict], today: date,
                        f"（{'、'.join(members[:10])}{'…' if len(members) > 10 else ''}）")
         else:
             out.append(f"考试提醒：{title} 明天考试，暂无关联报名")
+
+    # 班期收尾：已考完但仍有未收齐的
+    for session in sessions or []:
+        exam = to_date(session.get("考试日期"))
+        if exam is None or exam >= today:
+            continue
+        title = session.get("班期名称", "")
+        linked = [r for r in records or []
+                  if r.get("班期") and str(r.get("班期")).find(title) >= 0]
+        unpaid = [r.get("姓名", "") for r in linked
+                  if r.get("缴费状态") != "已缴费"]
+        if unpaid:
+            out.append(f"班期收尾：{title} 已考完，仍有 {len(unpaid)} 人未收齐"
+                       f"（{'、'.join(unpaid[:8])}{'…' if len(unpaid) > 8 else ''}）")
     return out
 
 

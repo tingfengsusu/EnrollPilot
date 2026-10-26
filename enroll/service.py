@@ -73,6 +73,24 @@ def execute(store: StoreLike, cmd: Command, operator: str = "系统") -> str:
         from datetime import date as _date
         items = due_reminders(store.records(), store.sessions(), _date.today())
         return render_reminders(items)
+    if cmd.action == "sales":
+        from enroll.settlement import render_accounts, salesperson_accounts
+        if hasattr(store, "payments_raw"):
+            raws = store.payments_raw()
+            if hasattr(store, "payments_by_record"):        # 真连：按记录 ID 关联
+                def links(pay):
+                    out = []
+                    for item in pay.get("关联报名记录") or []:
+                        if isinstance(item, dict):
+                            out.extend(item.get("record_ids") or [])
+                    return out
+                key_func = lambda rec: rec.get("_record_id", "")   # noqa: E731
+            else:
+                links = lambda pay: [pay.get("姓名", "")]          # noqa: E731
+                key_func = None
+            accounts = salesperson_accounts(store.records(), raws, links, key_func)
+            return render_accounts(accounts)
+        return "业务员账需要收款流水（当前存储不支持）"
     if cmd.action == "settle":
         if hasattr(store, "payments_by_record"):
             payments = store.payments_by_record()

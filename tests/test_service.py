@@ -75,6 +75,12 @@ def test_store_roundtrip():
     assert len(reloaded.timeline("张莹")) == 1
 
 
+def test_salesperson_account_command():
+    store = _store()
+    text = execute(store, parse("业务员账"), operator="测试")
+    assert "代收" in text and "应上缴" in text and "应返还" in text
+
+
 def test_duplicate_name_requires_qualifier():
     """真实数据里有重名：不加限定词不猜，加尾号/日期才更新。"""
     store = _store()
@@ -106,5 +112,6 @@ if __name__ == "__main__":
     test_export_and_unknown()
     test_not_found_is_honest()
     test_store_roundtrip()
+    test_salesperson_account_command()
     test_duplicate_name_requires_qualifier()
     print("ok: test_service")
