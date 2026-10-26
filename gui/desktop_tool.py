@@ -91,6 +91,22 @@ def _card(title: str) -> tuple:
     return card, outer
 
 
+def make_ocr_from_config():
+    """按 config/enroll.yaml 的 ocr 段构造识别函数；未配置返回 None。"""
+    cfg_path = os.path.join(ROOT, "config", "enroll.yaml")
+    if not os.path.exists(cfg_path):
+        return None
+    try:
+        import yaml
+        from enroll.ocr import make_ocr
+        with open(cfg_path, "r", encoding="utf-8") as fh:
+            cfg = yaml.safe_load(fh) or {}
+        return make_ocr(cfg)
+    except Exception as e:  # noqa: BLE001 — OCR 配置坏只是降级，不影响登记
+        print(f"[desktop] OCR 不可用（{e}）")
+        return None
+
+
 class DesktopTool(QMainWindow):
     def __init__(self, store=None, backend: str = ""):
         super().__init__()
@@ -98,6 +114,7 @@ class DesktopTool(QMainWindow):
         if not backend:
             backend = default_backend
         self.backend = backend
+        self.ocr = make_ocr_from_config()
         self.setWindowTitle(f"EnrollPilot 培训报名结算助手 — {backend}")
         self.resize(1180, 760)
         self.setStyleSheet(STYLE)
@@ -167,9 +184,9 @@ class DesktopTool(QMainWindow):
         layout.addWidget(self.text_edit)
 
         buttons = QHBoxLayout()
-        grab = QPushButton("从剪贴板读取")
+        self.btn_grab = grab = QPushButton("从剪贴板读取")
         grab.clicked.connect(self.on_clipboard_changed)
-        register = QPushButton("登记入库")
+        self.btn_register = register = QPushButton("登记入库")
         register.setObjectName("primary")
         register.clicked.connect(self.do_register)
         buttons.addWidget(grab)
@@ -197,14 +214,14 @@ class DesktopTool(QMainWindow):
         layout.addWidget(self.detail_view, 2)
 
         actions = QHBoxLayout()
-        refresh = QPushButton("刷新")
+        self.btn_refresh = refresh = QPushButton("刷新")
         refresh.setObjectName("ghost")
         refresh.clicked.connect(self.refresh_records)
-        settle = QPushButton("结算日报")
+        self.btn_settle = settle = QPushButton("结算日报")
         settle.clicked.connect(self.do_settle)
-        remind = QPushButton("提醒")
+        self.btn_remind = remind = QPushButton("提醒")
         remind.clicked.connect(self.do_remind)
-        export = QPushButton("导出名单")
+        self.btn_export = export = QPushButton("导出名单")
         export.clicked.connect(self.do_export)
         for b in (refresh, settle, remind, export):
             actions.addWidget(b)
@@ -229,8 +246,26 @@ class DesktopTool(QMainWindow):
     def on_clipboard_changed(self) -> None:
         image = self.clip.image()
         if not image.isNull():
-            self.preview.setText("（剪贴板是图片。OCR 已配置时会自动识别；否则请在微信里"
-                                 "「复制图片内容」后粘贴文字）")
+            if self.ocr:
+                self.preview.setText("检测到剪贴板图片，正在 OCR 识别…")
+                QApplication.processEvents()
+                path = os.path.join(ROOT, "data", "clipboard.png")
+                try:
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    image.save(path, "PNG")
+                    text = self.ocr(path)
+                    self.text_edit.setPlainText(text)
+                    self.preview.setText("OCR 识别完成，已填入——请核对后登记。")
+                except Exception as e:  # noqa: BLE001 — 识别失败回退手动
+                    self.preview.setText(f"OCR 失败（{e}）。请在微信里「复制图片内容」后粘贴文字。")
+                finally:
+                    try:
+                        os.unlink(path)
+                    except OSError:
+                        pass
+            else:
+                self.preview.setText("（剪贴板是图片。OCR 未配置：请在微信里打开图片 →"
+                                     "「复制图片内容」→ 回到这里粘贴文字）")
             return
         text = (self.clip.text() or "").strip()
         if not text:
@@ -247,7 +282,9 @@ class DesktopTool(QMainWindow):
             self.reply_view.append("（文本框为空：先粘贴或从剪贴板读取）")
             return
         reply = intake_text(self.store, text, operator="桌面工具", source="桌面工具")
-        self.reply_view.append(f"[{reply.splitlines()[0]}]")
+        lines = reply.splitlines()
+        if len(lines) > 1:
+            self.reply_view.append(f"[{lines[0]}]")
         self.reply_view.append(reply)
         self.reply_view.append("———")
         self.refresh_records()
