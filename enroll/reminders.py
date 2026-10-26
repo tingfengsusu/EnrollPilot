@@ -68,4 +68,7 @@ def due_reminders(records: List[Dict], sessions: List[Dict], today: date,
 def render_reminders(items: List[str]) -> str:
     if not items:
         return "提醒：今天没有到期的提醒 ✓"
-    return "【提醒】\n" + "\n".join(f"  ⚠ {line}" for line in items)
+    lines = [f"  ⚠ {line}" for line in items[:12]]
+    if len(items) > 12:
+        lines.append(f"  …其余 {len(items) - 12} 条见明细")
+    return "【提醒】\n" + "\n".join(lines)

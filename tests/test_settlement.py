@@ -53,19 +53,11 @@ def test_summarize_filters_by_date():
     assert s["新增人数"] == 1 and s["待收"] == []
 
 
-def test_price_deviation():
-    """统一标准价（合同价口径=缴费）：缴费偏离 → 红灯；公司收费不参与比对。"""
-    std = {("危化经营主要负责人", "新办"): 700.0}
-    rec = _rec(工种="危化经营主要负责人", 培训类型="新办")     # 缴费 700
-    assert not any("偏离合同标准价" in s for s in check_record(rec, [], pricing=std))
-    bad = _rec(缴费=1000, 公司收费=400, 返还=600,
+def test_no_price_standard_check():
+    """合同价是逐单谈的，多价是常态，结算不对标准价报差异。"""
+    rec = _rec(缴费=1000, 公司收费=400, 返还=600,
                工种="危化经营主要负责人", 培训类型="新办")
-    assert any("偏离合同标准价" in s for s in check_record(bad, [], pricing=std))
-    # 公司收费变化不触发（实收与合同价允许不同）
-    assert not any("偏离合同标准价" in s
-                   for s in check_record(_rec(公司收费=300, 返还=400), [],
-                                         pricing=std))
-    assert not any("偏离合同标准价" in s for s in check_record(rec, [], pricing=None))
+    assert not any("标准价" in s for s in check_record(rec, []))
 
 
 def test_render_daily():
@@ -83,6 +75,6 @@ if __name__ == "__main__":
     test_check_record_issues()
     test_summarize_only_counts_paid()
     test_summarize_filters_by_date()
-    test_price_deviation()
+    test_no_price_standard_check()
     test_render_daily()
     print("ok: test_settlement")

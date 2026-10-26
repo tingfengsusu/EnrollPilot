@@ -74,13 +74,6 @@ def execute(store: StoreLike, cmd: Command, operator: str = "系统") -> str:
         items = due_reminders(store.records(), store.sessions(), _date.today())
         return render_reminders(items)
     if cmd.action == "settle":
-        pricing = {}
-        if hasattr(store, "pricing"):
-            try:
-                from enroll.settlement import pricing_map
-                pricing = pricing_map(store.pricing())
-            except Exception:  # noqa: BLE001 — 标准价读不到不影响结算
-                pricing = {}
         if hasattr(store, "payments_by_record"):
             payments = store.payments_by_record()
             key_func = lambda rec: rec.get("_record_id", "")   # noqa: E731
@@ -88,8 +81,7 @@ def execute(store: StoreLike, cmd: Command, operator: str = "系统") -> str:
             payments = store.payments_by_key()
             key_func = None
         return render_daily(store.records(), payments,
-                            date=cmd.date or "今天", pricing=pricing,
-                            key_func=key_func)
+                            date=cmd.date or "今天", key_func=key_func)
     if cmd.action == "export":
         return "名单导出在 M4 开通（按班期/集团/状态出 Excel）"
     return "未支持的指令\n" + USAGE

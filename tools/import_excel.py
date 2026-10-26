@@ -225,8 +225,10 @@ def main():
             payload["所属集团"] = "某集团集团"
         company_rows.append(payload)
     company_ids = batch_create(tables["公司"], company_rows, "公司全名")
-    session_rows = [{"班期名称": title, "考试日期": _ms(exam), "起始日期": _ms(exam),
-                     "状态": "已结束", "负责业务员": args.business}
+    # 历史批次只有报名日期：写入起始日期，考试日期留空（不能拿报名日期冒充考试日期）
+    session_rows = [{"班期名称": title, "起始日期": _ms(exam),
+                     "状态": "已结束", "负责业务员": args.business,
+                     "备注": "报名批次日期（源数据无考试日期）"}
                     for title, exam in sessions.items()]
     session_ids = batch_create(tables["班期"], session_rows, "班期名称")
     print(f"公司/班期已建：{len(company_ids)} 家 / {len(session_ids)} 期")

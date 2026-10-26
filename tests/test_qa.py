@@ -50,12 +50,17 @@ def test_exam_time_answer():
     assert text and "2026-06-24" in text
     person = answer("李蕾 什么时候考试", _store())
     assert person and "2026-06-24" in person
-    # 有记录但缺班期/日期 → 明确说明，不落到用法提示
+    # 有批次但未录考试日期 → 明确说明"未录入"，而不是瞎报批次日期
     store = _store()
-    store.find_record("张莹")["班期"] = ""
-    store.find_record("张莹")["登记日期"] = ""
-    note = answer("张莹 考试时间", store)
-    assert note and "暂无班期/考试日期信息" in note
+    store.tables["班期"][0].pop("考试日期", None)
+    note = answer("26.6.24期 考试时间", store)
+    assert note and "考试日期未录入" in note and "2026-06-24" in note
+    # 有记录但缺班期/日期 → 明确说明
+    store2 = _store()
+    store2.find_record("张莹")["班期"] = ""
+    store2.find_record("张莹")["登记日期"] = ""
+    note2 = answer("张莹 考试时间", store2)
+    assert note2 and "暂无班期/考试日期信息" in note2
 
 
 def test_unknown_returns_none():

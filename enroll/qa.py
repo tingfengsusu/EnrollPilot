@@ -88,12 +88,16 @@ def _exam_texts(sessions, names=None):
     for s in sessions or []:
         if names and _norm(str(s.get("班期名称", ""))) not in names:
             continue
-        exam = to_date(s.get("考试日期")) or to_date(s.get("起始日期"))
-        if exam is None:
+        exam = to_date(s.get("考试日期"))
+        batch = to_date(s.get("起始日期"))
+        if exam is None and batch is None:
             continue
         loc = s.get("考点") or ""
-        out.append(f"{s.get('班期名称', '')}：{exam.isoformat()}"
-                   + (f"（{loc}）" if loc else ""))
+        title = s.get("班期名称", "")
+        if exam:
+            out.append(f"{title}：{exam.isoformat()}" + (f"（{loc}）" if loc else ""))
+        else:                            # 历史批次只有报名日期，没有真实考试日期
+            out.append(f"{title}：考试日期未录入（批次日期 {batch.isoformat()}）")
     return out
 
 
