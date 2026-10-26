@@ -15,6 +15,7 @@ import time
 
 from gateway.aggregator import MessageAggregator
 from enroll.extract import looks_like_id_text
+from enroll.heal import HealStore
 from enroll.intake import intake_text
 from enroll.instructions import USAGE, parse
 from enroll.service import execute
@@ -61,12 +62,13 @@ class MessageDedupe:
 
 class EnrollRunner:
     def __init__(self, store, channel, hold_seconds: float = 45.0, ocr=None,
-                 dedupe_path: str = "", export_dir: str = ""):
+                 dedupe_path: str = "", export_dir: str = "", healer=None):
         self.store = store
         self.channel = channel
         self.ocr = ocr                    # callable(image_path) -> 识别文本；None = 未配置
         self.export_dir = export_dir or os.path.join("data", "exports")
         self.dedupe = MessageDedupe(dedupe_path)
+        self.healer = healer or HealStore()
         # 本项目的"完整消息"= 有文字或有附件即可。FormPilot 的默认规则是「文字+附件齐全」
         # （学平险场景：品种关键词+照片），会把纯文字指令压 hold 秒——对群指令场景是错的。
         self.aggregator = MessageAggregator(
@@ -88,10 +90,24 @@ class EnrollRunner:
         chat = message.chat_id
         try:
             self._handle(message, chat)
+            return
         except Exception as e:  # noqa: BLE001 — 单条失败不影响连接
-            print(f"[runner] 处理失败：{e}")
+            error_text = str(e)
+            case = self.healer.match(error_text)
+            if case and case.get("remedy") == "retry":
+                print(f"[heal] 命中案例 {case.get('id')}（{case.get('symptom')}），自动重试一次")
+                try:
+                    self._handle(message, chat)
+                    self.healer.bump(case["id"])
+                    return
+                except Exception as e2:  # noqa: BLE001
+                    error_text = str(e2)
+            case = self.healer.record(error_text)
+            print(f"[heal] 未命中白名单，记案例 {case.get('id')}：{error_text}")
             try:
-                self.channel.send_text(chat, f"处理失败：{e}")
+                print(f"[runner] 处理失败：{error_text}")
+                self.channel.send_text(
+                    chat, f"处理失败（已记录故障案例 {case.get('id')}，待人工确认）：{error_text}")
             except Exception:
                 pass
 

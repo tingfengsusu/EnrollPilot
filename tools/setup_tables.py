@@ -134,6 +134,18 @@ def main():
         {"field_name": "标准价", "type": T_NUMBER},
         {"field_name": "备注", "type": T_TEXT},
     ])
+    create_table("开票明细", [
+        {"field_name": "序号", "type": T_NUMBER},
+        {"field_name": "企业名称", "type": T_TEXT},
+        {"field_name": "姓名", "type": T_TEXT},
+        {"field_name": "复审到期日期", "type": T_TEXT},
+        {"field_name": "安全员负责人", "type": T_TEXT},
+        {"field_name": "工种", "type": T_TEXT},
+        {"field_name": "培训类型", "type": T_TEXT},
+        {"field_name": "公司收费", "type": T_NUMBER},
+        {"field_name": "备注", "type": T_TEXT},
+        {"field_name": "来源文件", "type": T_TEXT},
+    ])
     create_table("报名记录", [
         {"field_name": "姓名", "type": T_TEXT},
         {"field_name": "手机号", "type": T_TEXT},

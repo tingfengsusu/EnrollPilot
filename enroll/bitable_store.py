@@ -123,6 +123,9 @@ class BitableStore:
         """原始收款行（保留 业务员 / 关联记录 结构，供业务员账使用）。"""
         return self._rows_raw("收款")
 
+    def invoice(self) -> List[Dict]:
+        return self._rows("开票明细") if "开票明细" in self.tables_cfg else []
+
     def counts(self) -> Dict[str, int]:
         return {name: len(self._rows(name)) for name in self.tables_cfg}
 

@@ -91,6 +91,12 @@ def execute(store: StoreLike, cmd: Command, operator: str = "系统") -> str:
             accounts = salesperson_accounts(store.records(), raws, links, key_func)
             return render_accounts(accounts)
         return "业务员账需要收款流水（当前存储不支持）"
+    if cmd.action == "invoice":
+        from enroll.invoice import reconcile, render_reconcile
+        rows = store.invoice() if hasattr(store, "invoice") else []
+        if not rows:
+            return "开票明细为空：先用 tools/import_invoice.py 导入开票明细"
+        return render_reconcile(reconcile(rows, store.records()))
     if cmd.action == "settle":
         if hasattr(store, "payments_by_record"):
             payments = store.payments_by_record()

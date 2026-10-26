@@ -12,7 +12,8 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 #: 五张表（设计文档 二）：报名记录 / 收款 / 变更日志 / 公司 / 班期
-_EMPTY = {"报名记录": [], "收款": [], "变更日志": [], "公司": [], "班期": [], "收费标准": []}
+_EMPTY = {"报名记录": [], "收款": [], "变更日志": [], "公司": [], "班期": [],
+          "收费标准": [], "开票明细": []}
 
 
 def now_str() -> str:
@@ -50,6 +51,9 @@ class DemoStore:
 
     def payments_raw(self) -> List[Dict]:
         return self.tables["收款"]
+
+    def invoice(self) -> List[Dict]:
+        return self.tables.setdefault("开票明细", [])
 
     def find_by_key(self, key: str):
         from enroll.records import id_key

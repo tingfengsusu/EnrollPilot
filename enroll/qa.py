@@ -11,7 +11,7 @@
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from core.dictionaries import normalize as _norm
@@ -139,6 +139,30 @@ def _exam_answer(text: str, store) -> Optional[str]:
     return None
 
 
+def _in_period(value, period: str, today: date) -> bool:
+    when = to_date(value)
+    if when is None:
+        return False
+    if period == "today":
+        return when == today
+    if period == "week":
+        start = today - timedelta(days=today.weekday())
+        return start <= when <= today
+    if period == "month":
+        return when.year == today.year and when.month == today.month
+    return True
+
+
+def _period_of(text: str):
+    if "本月" in text or "这个月" in text:
+        return "month", "本月"
+    if "本周" in text or "这周" in text:
+        return "week", "本周"
+    if "今天" in text:
+        return "today", "今天"
+    return None, ""
+
+
 def answer(question: str, store) -> Optional[str]:
     text = (question or "").strip()
     if not text:
@@ -146,6 +170,29 @@ def answer(question: str, store) -> Optional[str]:
     records = store.records()
     payments = store.payments_by_key()
     groups = _company_group(store)
+
+    # 开票明细（参考开票文档导入的数据）
+    if "开票" in text and hasattr(store, "invoice"):
+        inv = store.invoice()
+        if inv:
+            subject, _ = _strip_words(text, ("开票", "明细", "金额", "多少钱", "多少",
+                                             "名单", "了", "吗"))
+            hits = [x for x in inv
+                    if not subject or subject in _norm(str(x.get("姓名") or ""))
+                    or subject in _norm(str(x.get("企业名称") or ""))]
+            if not hits:
+                return f"开票明细里没有匹配「{subject}」的记录"
+            total = sum(float(x.get("公司收费") or 0) for x in hits)
+            names = "、".join(str(x.get("姓名")) for x in hits[:10])
+            return (f"开票明细 {len(hits)} 条 / 金额 {total:g} 元"
+                    + (f"：{names}" if names else ""))
+
+    # 期间新增报名（本月/本周/今天）
+    period, period_label = _period_of(text)
+    if period and ("报名" in text or "新增" in text):
+        today = date.today()
+        count = sum(1 for r in records if _in_period(r.get("登记日期"), period, today))
+        return f"{period_label}新增报名 {count} 人"
 
     subject, _ = _strip_words(text, _EXAM_WORDS)
     if any(w in text for w in _EXAM_WORDS):
@@ -184,6 +231,7 @@ def answer(question: str, store) -> Optional[str]:
 
     subject, pay = _strip_words(text, _PAY_WORDS)
     if pay:
+        period, period_label = _period_of(text)
         today = date.today()
         total = 0.0
         count_ = 0
@@ -191,16 +239,14 @@ def answer(question: str, store) -> Optional[str]:
             for p in flows:
                 if subject and subject not in _norm(name):
                     continue
-                if "今天" in text:
-                    when = to_date(p.get("时间"))
-                    if when != today:
-                        continue
+                if period and not _in_period(p.get("时间"), period, today):
+                    continue
                 try:
                     total += float(p.get("金额") or 0)
                 except (TypeError, ValueError):
                     continue
                 count_ += 1
-        scope = "今天" if "今天" in text else "累计"
+        scope = period_label or "累计"
         return f"{scope}收款 {count_} 笔，共 {total:g} 元"
 
     subject, status = _strip_words(text, _STATUS_WORDS)

@@ -151,6 +151,67 @@ def _start_daily_push(store, channel, cfg: dict) -> None:
     print(f"[push] 每日 {push_at} 推送已启动 → {chat}")
 
 
+def _fetch_chat_messages(app_id: str, app_secret: str, chat_id: str,
+                         start_ms: int, end_ms: int) -> list:
+    """拉取会话历史消息（文本回放用；需要 im:message 权限）。"""
+    import requests
+    token = requests.post(
+        "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+        json={"app_id": app_id, "app_secret": app_secret}, timeout=15
+    ).json().get("tenant_access_token", "")
+    items, page = [], ""
+    while True:
+        params = {"container_id_type": "chat", "container_id": chat_id,
+                  "start_time": str(start_ms // 1000),   # 飞书时间参数是秒
+                  "end_time": str(end_ms // 1000),
+                  "sort_type": "ByCreateTimeAsc", "page_size": 50}
+        if page:
+            params["page_token"] = page
+        resp = requests.get("https://open.feishu.cn/open-apis/im/v1/messages",
+                            headers={"Authorization": f"Bearer {token}"},
+                            params=params, timeout=20)
+        payload = resp.json()
+        if payload.get("code") != 0:
+            raise RuntimeError(f"{payload.get('code')} {payload.get('msg')}")
+        data = payload.get("data") or {}
+        items.extend(data.get("items") or [])
+        if not data.get("has_more"):
+            return items
+        page = data.get("page_token", "")
+
+
+def _catch_up_history(runner, cfg: dict, feishu: dict) -> None:
+    """启动时补拉离线期间发给机器人的消息（飞书不会重推）。"""
+    import time as _time
+    from enroll.catchup import load_state, replay_chat_messages, save_state
+    from gateway.models import InboundMessage
+
+    chat = str((cfg.get("settlement") or {}).get("push_chat_id") or "")
+    if not chat:
+        print("[catchup] 未配置会话（settlement.push_chat_id），跳过历史消息补拉")
+        return
+    state_path = os.path.join(ROOT, "data", "catchup_state.json")
+    state = load_state(state_path)
+    now_ms = int(_time.time() * 1000)
+    since = int(state.get(chat) or (now_ms - 24 * 3600 * 1000))
+    try:
+        items = _fetch_chat_messages(feishu["app_id"], feishu["app_secret"],
+                                     chat, since, now_ms)
+    except Exception as e:  # noqa: BLE001 — 补拉失败不影响正常收消息
+        print(f"[catchup] 拉取历史消息失败：{e}")
+        return
+
+    def handle(msg_id, sender_id, text):
+        runner.handle_message(InboundMessage(
+            channel="feishu", msg_id=msg_id, sender_id=sender_id,
+            chat_id=chat, text=text))
+
+    count = replay_chat_messages(items, handle, runner.dedupe.is_duplicate)
+    state[chat] = now_ms
+    save_state(state_path, state)
+    print(f"[catchup] 历史消息 {len(items)} 条，补处理 {count} 条")
+
+
 def listen() -> int:
     """真连模式：长连接收消息 → 聚合 → 抽取/指令 → bitable → 回推。"""
     if check_config():
@@ -170,12 +231,15 @@ def listen() -> int:
     ocr = make_ocr(cfg)
     if ocr is None:
         print("[ocr] 未配置（config/enroll.yaml → ocr.provider=tencent + 密钥），图片将走文本兜底")
+    from enroll.heal import HealStore
+    healer = HealStore(os.path.join(ROOT, "data", "heal_store.json"))
     runner = EnrollRunner(store, channel,
                           hold_seconds=float(feishu.get("merge_hold_seconds", 45)),
                           dedupe_path=os.path.join(ROOT, "data", "runner_state.db"),
                           export_dir=os.path.join(ROOT, "data", "exports"),
-                          ocr=ocr)
+                          ocr=ocr, healer=healer)
     channel.on_message = runner.on_message
+    _catch_up_history(runner, cfg, feishu)
     _start_daily_push(store, channel, cfg)
     print("长连接已启动，等待群消息…（Ctrl+C 退出；图片 OCR 未配置时按提示走文本兜底）")
     try:

@@ -59,6 +59,8 @@ def parse(text) -> Optional[Command]:
         return Command("remind", raw=t)
     if t in ("业务员账", "业务员对账", "销售账"):
         return Command("sales", raw=t)
+    if t in ("开票对账", "开票核对"):
+        return Command("invoice", raw=t)
     if t.startswith("结算"):
         return Command("settle", raw=t, date=t[2:].strip())
     if t.startswith("记录"):
@@ -79,7 +81,7 @@ def parse(text) -> Optional[Command]:
     return None
 
 
-USAGE = ("支持的指令：状态 / 提醒 / 结算 [日期] / 业务员账 / 记录 <姓名> / 查 <关键词> / "
-         "导出 名单 [集团] / 导出 结算 [日期] /\n"
+USAGE = ("支持的指令：状态 / 提醒 / 结算 [日期] / 业务员账 / 开票对账 / "
+         "记录 <姓名> / 查 <关键词> / 导出 名单 [集团] / 导出 结算 [日期] /\n"
          "<姓名> 已确认|已参加|未参加|已缴费 [金额]|已退|已开票\n"
          "重名时加限定：<姓名> <身份证后4位或登记日期 6.23> <状态>")

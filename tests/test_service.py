@@ -81,6 +81,14 @@ def test_salesperson_account_command():
     assert "代收" in text and "应上缴" in text and "应返还" in text
 
 
+def test_invoice_reconcile_command():
+    store = _store()
+    store.tables["开票明细"] = [
+        {"姓名": "李蕾", "工种": "危化经营主要负责人", "公司收费": 400}]
+    text = execute(store, parse("开票对账"), operator="测试")
+    assert "开票对账" in text and "已匹配 1" in text
+
+
 def test_duplicate_name_requires_qualifier():
     """真实数据里有重名：不加限定词不猜，加尾号/日期才更新。"""
     store = _store()
@@ -113,5 +121,6 @@ if __name__ == "__main__":
     test_not_found_is_honest()
     test_store_roundtrip()
     test_salesperson_account_command()
+    test_invoice_reconcile_command()
     test_duplicate_name_requires_qualifier()
     print("ok: test_service")

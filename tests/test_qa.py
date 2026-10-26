@@ -63,6 +63,28 @@ def test_exam_time_answer():
     assert note2 and "暂无班期/考试日期信息" in note2
 
 
+def test_invoice_answer():
+    store = _store()
+    store.tables["开票明细"] = [
+        {"姓名": "卜春雷", "企业名称": "技术中心", "公司收费": 449.45},
+        {"姓名": "纪荣林", "企业名称": "铸锻", "公司收费": 181.8},
+    ]
+    text = answer("开票明细多少", store)
+    assert "2 条" in text and "631.25" in text
+    one = answer("卜春雷 开票明细", store)
+    assert "卜春雷" in one and "449.45" in one
+
+
+def test_month_stats():
+    from datetime import date
+    store = _store()
+    store.records().append({"姓名": "本月新人", "登记日期": date.today().isoformat()})
+    text = answer("本月新增报名多少", store)
+    assert "本月新增报名 1 人" in text
+    pay = answer("本月收款多少", store)
+    assert "本月收款 1 笔" in pay and "400" in pay
+
+
 def test_unknown_returns_none():
     assert answer("今天天气怎么样", _store()) is None
     assert answer("", _store()) is None
@@ -75,5 +97,7 @@ if __name__ == "__main__":
     test_payment_answer_today()
     test_status_answer()
     test_exam_time_answer()
+    test_invoice_answer()
+    test_month_stats()
     test_unknown_returns_none()
     print("ok: test_qa")
