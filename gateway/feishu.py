@@ -270,6 +270,17 @@ class FeishuChannel(Channel):
             raise ChannelError("上传文件未返回 file_key")
         self._create_message(chat_id, "file", {"file_key": file_key})
 
+    def send_card(self, chat_id: str, title: str, text: str,
+                  template: str = "blue") -> None:
+        """回推交互卡片（标题栏 + markdown 正文），用于日报/提醒/查询结果。"""
+        card = {
+            "config": {"wide_screen_mode": True},
+            "header": {"title": {"tag": "plain_text", "content": title},
+                       "template": template},
+            "elements": [{"tag": "markdown", "content": text}],
+        }
+        self._create_message(chat_id, "interactive", card)
+
     def _create_message(self, chat_id: str, msg_type: str,
                         content: Dict[str, Any]) -> None:
         from lark_oapi.api.im.v1 import (CreateMessageRequest,

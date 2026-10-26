@@ -1,17 +1,11 @@
-"""桌面剪贴板入口（M2，入口B）——前台的工具，与群机器人写同一个库。
+"""桌面登记台（M2，入口B）——前台的工具，与群机器人写同一个库。
 
-用法::
+设计依据（docs/报名结算系统-设计.md 三·入口B；视觉规范参考 visualize 技能的设计原则）：
 
-    python tools/enroll_bot.py --desktop        # 或直接 python -m gui.desktop_tool
-
-设计要点（设计文档 三·入口B）：
-
-- **剪贴板双模式**：是图片 → 提示走微信「复制图片内容」人肉兜底（OCR 后端未配置）；
-  是身份证识别文本 → 自动填入文本框，**前台可以人工修正再登记**（修正动作天然合规：
-  机器只补空，人改的字段由人负责）；
-- **双入口一个库**：检测到 config/enroll.yaml 凭据就用 BitableStore 真连多维表格，
-  否则落本地 JSON 演示库（标题栏注明后端，绝不装真连）；
-- 登记走 :func:`enroll.intake.intake_text`，与机器人完全同一条代码路径。
+- **剪贴板双模式**：图片 → OCR（配置了腾讯云）或提示「复制图片内容」人肉兜底；
+  身份证识别文本 → 自动填入，**可人工修正再登记**（机器只补空，人改的字段由人负责）；
+- **双入口一个库**：有 config/enroll.yaml 就写真连多维表格，否则落本地演示库（标题栏注明）；
+- 左右两栏：左「登记」右「记录 + 变更时间线」，底部常用动作（结算/提醒/导出）。
 """
 from __future__ import annotations
 
@@ -24,7 +18,8 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QApplication, QGroupBox, QHBoxLayout, QLabel,
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel,
                              QListWidget, QMainWindow, QPlainTextEdit,
                              QPushButton, QSplitter, QTextEdit, QVBoxLayout,
                              QWidget)
@@ -32,7 +27,33 @@ from PyQt5.QtWidgets import (QApplication, QGroupBox, QHBoxLayout, QLabel,
 from enroll.demo_store import DemoStore
 from enroll.extract import looks_like_id_text
 from enroll.intake import intake_text
-from enroll.service import fmt_time
+from enroll.service import execute, fmt_time
+
+#: 视觉规范：中性底 + 白卡片 + 单主色，字号 14/12，圆角 10/8，克制不堆装饰
+STYLE = """
+QWidget { background: #F5F6F8; color: #1F2329; font-family: "Microsoft YaHei UI", "Segoe UI"; font-size: 14px; }
+QFrame#card { background: #FFFFFF; border: 1px solid #E4E6EB; border-radius: 10px; }
+QFrame#header { background: #FFFFFF; border-bottom: 1px solid #E4E6EB; }
+QLabel#title { font-size: 17px; font-weight: 600; color: #1F2329; }
+QLabel#subtitle, QLabel#hint { font-size: 12px; color: #6B7280; }
+QLabel#section { font-size: 13px; font-weight: 600; color: #374151; }
+QLabel#badge { font-size: 12px; color: #2563EB; background: #EFF4FF;
+               border: 1px solid #D6E2FF; border-radius: 9px; padding: 2px 8px; }
+QPushButton { background: #FFFFFF; border: 1px solid #D5D9E0; border-radius: 8px;
+              min-height: 32px; padding: 0 14px; font-size: 13px; color: #1F2329; }
+QPushButton:hover { background: #F2F4F7; }
+QPushButton#primary { background: #2563EB; border-color: #2563EB; color: #FFFFFF; font-weight: 600; }
+QPushButton#primary:hover { background: #1D4ED8; }
+QPushButton#ghost { background: transparent; border-color: transparent; color: #374151; }
+QPushButton#ghost:hover { background: #EEF0F3; }
+QPlainTextEdit, QTextEdit { background: #FFFFFF; border: 1px solid #E4E6EB; border-radius: 8px;
+                            padding: 8px; font-size: 13px; selection-background-color: #DBEAFE; }
+QListWidget { background: #FFFFFF; border: 1px solid #E4E6EB; border-radius: 8px;
+              font-size: 13px; outline: 0; }
+QListWidget::item { padding: 8px 10px; border-bottom: 1px solid #F0F1F3; }
+QListWidget::item:selected { background: #EFF4FF; color: #1F2329; }
+QStatusBar { background: #FFFFFF; border-top: 1px solid #E4E6EB; font-size: 12px; color: #6B7280; }
+"""
 
 
 def make_store():
@@ -57,17 +78,31 @@ def make_store():
     return DemoStore(path), "本地演示库（未配置真连凭据）"
 
 
+def _card(title: str) -> tuple:
+    """白卡片 + 标题，返回 (card, content_layout)。"""
+    card = QFrame()
+    card.setObjectName("card")
+    outer = QVBoxLayout(card)
+    outer.setContentsMargins(14, 12, 14, 12)
+    outer.setSpacing(10)
+    label = QLabel(title)
+    label.setObjectName("section")
+    outer.addWidget(label)
+    return card, outer
+
+
 class DesktopTool(QMainWindow):
     def __init__(self, store=None, backend: str = ""):
         super().__init__()
         self.store, default_backend = (store, backend) if store else make_store()
         if not backend:
             backend = default_backend
-        self.setWindowTitle(f"EnrollPilot 报名登记台 — 后端：{backend}")
-        self.resize(980, 620)
+        self.backend = backend
+        self.setWindowTitle(f"EnrollPilot 培训报名结算助手 — {backend}")
+        self.resize(1180, 760)
+        self.setStyleSheet(STYLE)
         self._build_ui()
         self.refresh_records()
-        # 启动读一次剪贴板 + 运行中持续监听（QClipboard 事件，无全局钩子）
         self.clip = QApplication.clipboard()
         self.clip.dataChanged.connect(self.on_clipboard_changed)
         self.on_clipboard_changed()
@@ -76,50 +111,117 @@ class DesktopTool(QMainWindow):
     # UI
     # ------------------------------------------------------------------
     def _build_ui(self) -> None:
+        root = QWidget()
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._build_header())
+
+        body = QWidget()
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(14, 12, 14, 8)
+        body_layout.setSpacing(12)
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(self._build_left())
         splitter.addWidget(self._build_right())
-        splitter.setSizes([480, 480])
-        self.setCentralWidget(splitter)
+        splitter.setSizes([520, 620])
+        splitter.setChildrenCollapsible(False)
+        body_layout.addWidget(splitter)
+        layout.addWidget(body, 1)
+        layout.addWidget(self._build_footer())
+        self.setCentralWidget(root)
+        self.statusBar().showMessage("就绪")
+
+    def _build_header(self) -> QWidget:
+        header = QFrame()
+        header.setObjectName("header")
+        row = QHBoxLayout(header)
+        row.setContentsMargins(16, 10, 16, 10)
+        titles = QVBoxLayout()
+        titles.setSpacing(2)
+        title = QLabel("报名登记台")
+        title.setObjectName("title")
+        subtitle = QLabel("剪贴板/粘贴身份证文本 → 核对 → 写入报名库（与群机器人同一个库）")
+        subtitle.setObjectName("subtitle")
+        titles.addWidget(title)
+        titles.addWidget(subtitle)
+        row.addLayout(titles)
+        row.addStretch(1)
+        badge = QLabel(self.backend)
+        badge.setObjectName("badge")
+        row.addWidget(badge)
+        return header
 
     def _build_left(self) -> QWidget:
-        box = QGroupBox("① 录入（剪贴板/粘贴身份证识别文本，可人工修正）")
-        layout = QVBoxLayout(box)
+        card, layout = _card("① 登记")
         self.preview = QLabel("（剪贴板预览）")
+        self.preview.setObjectName("hint")
         self.preview.setWordWrap(True)
         layout.addWidget(self.preview)
+
         self.text_edit = QPlainTextEdit()
         self.text_edit.setPlaceholderText(
-            "微信里对图片点「复制图片内容」，把文字粘贴到这里（或 Ctrl+V 自动带出）；\n"
-            "识别错位可以直接改，改完再登记——人改的字段由人负责。")
+            "微信里对图片点「复制图片内容」，把文字粘贴到这里；"
+            "或直接复制图片（配置了 OCR 会自动识别）。\n识别错位可以直接改，改完再登记。")
+        self.text_edit.setMinimumHeight(120)
         layout.addWidget(self.text_edit)
+
         buttons = QHBoxLayout()
         grab = QPushButton("从剪贴板读取")
         grab.clicked.connect(self.on_clipboard_changed)
         register = QPushButton("登记入库")
+        register.setObjectName("primary")
         register.clicked.connect(self.do_register)
         buttons.addWidget(grab)
         buttons.addWidget(register)
+        buttons.addStretch(1)
         layout.addLayout(buttons)
+
         self.reply_view = QTextEdit()
         self.reply_view.setReadOnly(True)
         self.reply_view.setPlaceholderText("登记回执与存疑提示会显示在这里")
-        layout.addWidget(self.reply_view)
-        return box
+        layout.addWidget(self.reply_view, 1)
+        return card
 
     def _build_right(self) -> QWidget:
-        box = QGroupBox("② 报名记录（点击看详情与变更时间线）")
-        layout = QVBoxLayout(box)
+        card, layout = _card("② 报名记录")
         self.record_list = QListWidget()
         self.record_list.currentRowChanged.connect(self.show_detail)
-        layout.addWidget(self.record_list)
+        layout.addWidget(self.record_list, 2)
+
+        detail_title = QLabel("详情与变更时间线")
+        detail_title.setObjectName("hint")
+        layout.addWidget(detail_title)
         self.detail_view = QTextEdit()
         self.detail_view.setReadOnly(True)
-        layout.addWidget(self.detail_view)
+        layout.addWidget(self.detail_view, 2)
+
+        actions = QHBoxLayout()
         refresh = QPushButton("刷新")
+        refresh.setObjectName("ghost")
         refresh.clicked.connect(self.refresh_records)
-        layout.addWidget(refresh)
-        return box
+        settle = QPushButton("结算日报")
+        settle.clicked.connect(self.do_settle)
+        remind = QPushButton("提醒")
+        remind.clicked.connect(self.do_remind)
+        export = QPushButton("导出名单")
+        export.clicked.connect(self.do_export)
+        for b in (refresh, settle, remind, export):
+            actions.addWidget(b)
+        actions.addStretch(1)
+        layout.addLayout(actions)
+        return card
+
+    def _build_footer(self) -> QWidget:
+        footer = QFrame()
+        footer.setObjectName("header")
+        row = QHBoxLayout(footer)
+        row.setContentsMargins(16, 8, 16, 8)
+        hint = QLabel("提示：状态类字段（报名/缴费/开票）只允许人工修改；机器只补空字段。")
+        hint.setObjectName("hint")
+        row.addWidget(hint)
+        row.addStretch(1)
+        return footer
 
     # ------------------------------------------------------------------
     # 行为
@@ -127,8 +229,8 @@ class DesktopTool(QMainWindow):
     def on_clipboard_changed(self) -> None:
         image = self.clip.image()
         if not image.isNull():
-            self.preview.setText("（剪贴板是图片。OCR 未配置：请在微信里打开图片 →"
-                                 "「复制图片内容」→ 回到这里粘贴文字）")
+            self.preview.setText("（剪贴板是图片。OCR 已配置时会自动识别；否则请在微信里"
+                                 "「复制图片内容」后粘贴文字）")
             return
         text = (self.clip.text() or "").strip()
         if not text:
@@ -161,7 +263,7 @@ class DesktopTool(QMainWindow):
             self.record_list.addItem(
                 f"{rec.get('姓名', '（无名）')}｜{rec.get('公司', '')}｜"
                 f"缴费 {rec.get('缴费', '-')}｜{rec.get('缴费状态', '')}")
-        self.statusBar().showMessage(f"共 {len(records)} 条记录")
+        self.statusBar().showMessage(f"共 {len(records)} 条记录 · 后端：{self.backend}")
 
     def show_detail(self, row: int) -> None:
         try:
@@ -175,7 +277,7 @@ class DesktopTool(QMainWindow):
         lines = [f"姓名：{rec.get('姓名', '')}    公司：{rec.get('公司', '')}",
                  f"身份证号：{rec.get('身份证号', '')}    手机号：{rec.get('手机号', '')}",
                  f"工种：{rec.get('工种', '')}    培训类型：{rec.get('培训类型', '')}",
-                 f"登记：{rec.get('登记日期', '')}（{rec.get('登记渠道', '')}）",
+                 f"登记：{fmt_time(rec.get('登记日期', ''))}（{rec.get('登记渠道', '')}）",
                  f"状态：报名 {rec.get('报名状态', '')} / 缴费 {rec.get('缴费状态', '')}"
                  f" / 开票 {rec.get('开票状态', '')}",
                  f"金额：缴费 {rec.get('缴费', '-')} = 公司收费 {rec.get('公司收费', '-')}"
@@ -187,13 +289,47 @@ class DesktopTool(QMainWindow):
                          f"（{e.get('操作人')}，{e.get('触发来源')}）")
         self.detail_view.setPlainText("\n".join(lines))
 
+    # ------------------------------------------------------------------
+    # 底部动作
+    # ------------------------------------------------------------------
+    def do_settle(self) -> None:
+        try:
+            from enroll.settlement import render_daily
+            text = render_daily(self.store.records(), self.store.payments_by_key())
+            self.reply_view.append(text)
+            self.reply_view.append("———")
+        except Exception as e:  # noqa: BLE001
+            self.detail_view.setPlainText(f"结算失败：{e}")
+
+    def do_remind(self) -> None:
+        try:
+            from datetime import date
+            from enroll.reminders import due_reminders, render_reminders
+            items = due_reminders(self.store.records(), self.store.sessions(),
+                                  date.today())
+            self.reply_view.append(render_reminders(items))
+            self.reply_view.append("———")
+        except Exception as e:  # noqa: BLE001
+            self.detail_view.setPlainText(f"提醒失败：{e}")
+
+    def do_export(self) -> None:
+        try:
+            from enroll.export import export_for_command
+            out_dir = os.path.join(ROOT, "data", "exports")
+            path = export_for_command(self.store, "名单", out_dir)
+            self.reply_view.append(f"已导出名单：{path}")
+            self.reply_view.append("———")
+            self.statusBar().showMessage(f"已导出：{path}")
+        except Exception as e:  # noqa: BLE001
+            self.statusBar().showMessage(f"导出失败：{e}")
+
 
 def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
+    app.setFont(QFont("Microsoft YaHei UI", 10))
     window = DesktopTool()
     window.show()
     if os.environ.get("ENROLLPILOT_SMOKE") == "1":
-        # 打包/CI 自检：开窗 → 1.5 秒后退出（用于验证 exe 能起得来）
         from PyQt5.QtCore import QTimer
         QTimer.singleShot(1500, app.quit)
     return app.exec_()

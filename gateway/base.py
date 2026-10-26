@@ -88,6 +88,11 @@ class Channel:
         """回推文件（导出的 Excel 等）。默认实现：降级为文本提示。"""
         self.send_text(chat_id, f"（文件）{file_path}")
 
+    def send_card(self, chat_id: str, title: str, text: str,
+                  template: str = "blue") -> None:
+        """回推卡片（标题 + markdown 正文）。默认实现：降级为文本。"""
+        self.send_text(chat_id, f"【{title}】\n{text}")
+
     def format_mention(self, user_id: str) -> str:
         """把用户标识渲染成平台自己的 @ 标记（告警要 @负责人）。
 

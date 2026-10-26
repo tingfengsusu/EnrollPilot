@@ -32,12 +32,12 @@ def test_unpaid_reminder():
 
 def test_session_reminder_one_day_before():
     today = date(2026, 7, 1)
-    sessions = [{"班期名称": "26.7.2 期", "起始日期": "2026-07-02"},
-                {"班期名称": "26.8.1 期", "起始日期": "2026-08-01"}]
+    sessions = [{"班期名称": "26.7.2 期", "考试日期": "2026-07-02"},
+                {"班期名称": "26.8.1 期", "考试日期": "2026-08-01"}]
     records = [{"姓名": "李蕾", "班期": "26.7.2 期"},
                {"姓名": "张莹", "班期": "26.7.2 期"}]
     items = due_reminders(records, sessions, today)
-    assert any("26.7.2 期" in i and "2 人" in i for i in items)
+    assert any("26.7.2 期" in i and "2 人" in i and "考试" in i for i in items)
     assert not any("26.8.1 期" in i for i in items)
 
 

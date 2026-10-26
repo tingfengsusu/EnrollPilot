@@ -16,12 +16,16 @@ class FakeChannel:
     def __init__(self):
         self.sent = []
         self.files = []
+        self.cards = []
 
     def send_text(self, chat_id, text):
         self.sent.append((chat_id, text))
 
     def send_file(self, chat_id, path):
         self.files.append((chat_id, path))
+
+    def send_card(self, chat_id, title, text, template="blue"):
+        self.cards.append((title, text))
 
     def download_all(self, message):
         return []
@@ -53,11 +57,11 @@ def test_runner_dedupes_and_replies_once():
     channel = FakeChannel()
     runner = EnrollRunner(DemoStore().seed(), channel)
     runner.on_message(_msg("m1", "状态"))
-    assert len(channel.sent) == 1 and "当前数据" in channel.sent[0][1]
+    assert len(channel.cards) == 1 and "当前数据" in channel.cards[0][1]
     runner.on_message(_msg("m1", "状态"))           # 平台重推
-    assert len(channel.sent) == 1                   # 不重复回复
+    assert len(channel.cards) == 1                  # 不重复回复
     runner.on_message(_msg("m2", "状态"))
-    assert len(channel.sent) == 2
+    assert len(channel.cards) == 2
 
 
 def test_runner_text_only_no_hold_wait():
@@ -65,7 +69,15 @@ def test_runner_text_only_no_hold_wait():
     channel = FakeChannel()
     runner = EnrollRunner(DemoStore().seed(), channel, hold_seconds=45)
     runner.on_message(_msg("m3", "结算"))
-    assert len(channel.sent) == 1 and "结算日报" in channel.sent[0][1]
+    assert len(channel.cards) == 1 and "结算日报" in channel.cards[0][1]
+
+
+def test_runner_qa_question():
+    """非指令的自然语言问题走规则问答。"""
+    channel = FakeChannel()
+    runner = EnrollRunner(DemoStore().seed(), channel)
+    runner.on_message(_msg("m5", "某集团集团还欠多少"))
+    assert len(channel.cards) == 1 and "待收" in channel.cards[0][1]
 
 
 def test_runner_export_command_sends_file():
@@ -82,5 +94,6 @@ if __name__ == "__main__":
     test_dedupe_sqlite_survives_restart()
     test_runner_dedupes_and_replies_once()
     test_runner_text_only_no_hold_wait()
+    test_runner_qa_question()
     test_runner_export_command_sends_file()
     print("ok: test_runner_dedupe")

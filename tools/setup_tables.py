@@ -118,6 +118,7 @@ def main():
     ])
     create_table("班期", [
         {"field_name": "班期名称", "type": T_TEXT},
+        {"field_name": "考试日期", "type": T_DATE},
         {"field_name": "起始日期", "type": T_DATE},
         {"field_name": "结束日期", "type": T_DATE},
         {"field_name": "课程", "type": T_TEXT},
@@ -146,7 +147,9 @@ def main():
         {"field_name": "公司收费", "type": T_NUMBER},
         {"field_name": "返还", "type": T_NUMBER},
         {"field_name": "登记日期", "type": T_DATE},
-        sel("登记渠道", "群机器人", "桌面工具"),
+        {"field_name": "参加日期", "type": T_DATE},
+        {"field_name": "复审到期日期", "type": T_DATE},
+        sel("登记渠道", "群机器人", "桌面工具", "EXCEL导入"),
         {"field_name": "身份证正", "type": T_ATTACHMENT},
         {"field_name": "一寸照", "type": T_ATTACHMENT},
         {"field_name": "缴费凭证", "type": T_ATTACHMENT},

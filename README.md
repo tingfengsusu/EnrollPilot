@@ -30,6 +30,8 @@
 | `gui/desktop_tool.py` | 桌面登记台（入口B）：剪贴板双模式 → 人工修正 → 与机器人同库同路径 |
 | `tools/enroll_bot.py` | CLI：`--demo` 离线闭环 / `--desktop` 桌面台 / `--listen` 真连长连接 / `--check-config` 配置体检 |
 | `tools/setup_tables.py` | 一键建库：应用身份创建「报名结算」多维表格 + 五张表 + 字段，自动回填配置，`--smoke` 冒烟 |
+| `tools/import_excel.py` | 真实 Excel（总表）→ 公司/班期/报名记录/收款四张表，`--limit` 试导、`--reset` 清空重导 |
+| `tools/build_dictionaries.py` | 从真实 Excel 提取字典值域（工种/培训类型/人员类别/学历）→ `config/options_*.yaml` |
 | `config/enroll.example.yaml` | 配置模板（正式 `enroll.yaml` 已 gitignore） |
 
 ## 快速开始
@@ -57,8 +59,12 @@ python -m venv .venv
   变更日志落库，群内「记录 <姓名>」查时间线；卡片渲染未做（当前为文本回复）
 - **M4（导出 ✅ + 推送 ✅）**：`export_settlement` 按期结算单 / `export_roster` 按集团·状态名单；
   群指令「导出 名单/结算」直接生成 Excel 发到会话；每日 18:30 自动推送日报（`settlement.push_chat_id`）
-- **P2（提醒 ✅ 部分）**：班期驱动提醒已实现——「提醒」指令即时查、日报自动附带；
-  缴费逾期（报名 N 天未收）与开班前一天名单提醒；报名数据问答机器人未做
+- **P2（提醒/问答/卡片 ✅）**：班期驱动提醒（**以考试时间为准**：考试前一天发名单 + 报名 N 天未缴费），
+  「提醒」指令即时查、日报自动附带；规则式数据问答（欠款/人数/收款/状态）；日报/提醒/查询用飞书卡片渲染
+- **OCR（✅ 腾讯云）**：身份证图片 → 腾讯云 OCR（自包含 TC3 签名，无重 SDK）→ 标签文本 → 同一抽取管道；
+  密钥配在 `config/enroll.yaml → ocr`，未配置时自动回落「复制图片内容」文本兜底
+- **数据装载（✅）**：`build_dictionaries.py` 提取真实字典值域；`import_excel.py` 把 516 行总表导入
+  公司（105 家）/班期（按考试日期）/报名记录/收款；复审到期按「参加日期 + 3 年」推算（表内有值优先）
 
 ## 合规边界
 

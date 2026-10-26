@@ -99,6 +99,11 @@ def parse_id_text(text: str) -> ExtractResult:
             return
         if take_birth(value):
             return
+        iso = re.fullmatch(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", value)   # OCR 常见格式
+        if iso:
+            nonlocal birth_iso
+            birth_iso = _birth_to_iso(iso.group(1), iso.group(2), iso.group(3))
+            return
         if (_YEAR_RE.match(value)
                 or ("年" in value and "月" in value and "日" in value
                     and re.search(r"\d", value))):

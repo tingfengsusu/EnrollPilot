@@ -49,18 +49,19 @@ def due_reminders(records: List[Dict], sessions: List[Dict], today: date,
             out.append(f"缴费提醒：{name} 报名已 {days} 天未缴费{tail}")
 
     for session in sessions or []:
-        start = to_date(session.get("起始日期"))
-        if start is None or start - today != timedelta(days=1):
+        # 班期以「考试时间」为衡量标准：优先考试日期，兼容旧的起始日期
+        exam = to_date(session.get("考试日期")) or to_date(session.get("起始日期"))
+        if exam is None or exam - today != timedelta(days=1):
             continue
         title = session.get("班期名称", "")
         members = [r.get("姓名", "") for r in records or []
                    if r.get("班期") and (r.get("班期") == title
                                          or str(r.get("班期")).find(title) >= 0)]
         if members:
-            out.append(f"开班提醒：{title} 明天开课，共 {len(members)} 人"
+            out.append(f"考试提醒：{title} 明天考试，共 {len(members)} 人"
                        f"（{'、'.join(members[:10])}{'…' if len(members) > 10 else ''}）")
         else:
-            out.append(f"开班提醒：{title} 明天开课，暂无关联报名")
+            out.append(f"考试提醒：{title} 明天考试，暂无关联报名")
     return out
 
 

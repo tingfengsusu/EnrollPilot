@@ -108,13 +108,35 @@ class EnrollRunner:
             if cmd.action == "export":
                 self._handle_export(cmd, chat)
                 return
-            self.channel.send_text(chat, execute(self.store, cmd, operator=operator))
+            reply = execute(self.store, cmd, operator=operator)
+            self._send(chat, cmd, reply)
             return
         if looks_like_id_text(text):
             self.channel.send_text(chat, intake_text(
                 self.store, text, operator=operator, source=message.channel or "群消息"))
             return
+        # 规则式问答（P2）：不是指令、不是身份证文本时，尝试当问题回答
+        from enroll.qa import answer as qa_answer
+        qa_reply = None
+        try:
+            qa_reply = qa_answer(text, self.store)
+        except Exception as e:  # noqa: BLE001 — 问答失败不阻塞
+            print(f"[runner] 问答失败：{e}")
+        if qa_reply:
+            self.channel.send_card(chat, "数据问答", qa_reply)
+            return
         self.channel.send_text(chat, "不是认识的指令。\n" + USAGE)
+
+    #: 用卡片渲染的指令（标题, 颜色）
+    _CARDS = {"settle": ("结算日报", "blue"), "remind": ("提醒", "orange"),
+              "status": ("数据状态", "grey"), "records": ("变更时间线", "blue")}
+
+    def _send(self, chat: str, cmd, reply: str) -> None:
+        card = self._CARDS.get(cmd.action)
+        if card:
+            self.channel.send_card(chat, card[0], reply, template=card[1])
+        else:
+            self.channel.send_text(chat, reply)
 
     def _handle_export(self, cmd, chat: str) -> None:
         """「导出 名单/结算」→ 生成 Excel 并发到当前会话。"""
