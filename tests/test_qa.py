@@ -45,6 +45,19 @@ def test_status_answer():
     assert "缴费" in text and "实收" in text
 
 
+def test_exam_time_answer():
+    text = answer("26.6.24期 考试时间", _store())
+    assert text and "2026-06-24" in text
+    person = answer("李蕾 什么时候考试", _store())
+    assert person and "2026-06-24" in person
+    # 有记录但缺班期/日期 → 明确说明，不落到用法提示
+    store = _store()
+    store.find_record("张莹")["班期"] = ""
+    store.find_record("张莹")["登记日期"] = ""
+    note = answer("张莹 考试时间", store)
+    assert note and "暂无班期/考试日期信息" in note
+
+
 def test_unknown_returns_none():
     assert answer("今天天气怎么样", _store()) is None
     assert answer("", _store()) is None
@@ -56,5 +69,6 @@ if __name__ == "__main__":
     test_count_answer()
     test_payment_answer_today()
     test_status_answer()
+    test_exam_time_answer()
     test_unknown_returns_none()
     print("ok: test_qa")

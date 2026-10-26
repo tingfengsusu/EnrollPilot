@@ -54,14 +54,18 @@ def test_summarize_filters_by_date():
 
 
 def test_price_deviation():
-    """统一标准价：公司收费偏离「工种×培训类型」标准价 → 红灯。"""
-    std = {("危化经营主要负责人", "新办"): 450.0}
-    rec = _rec(工种="危化经营主要负责人", 培训类型="新办")
-    assert any("偏离标准价" in s for s in check_record(rec, [], pricing=std))
-    ok = _rec(公司收费=450, 返还=250, 工种="危化经营主要负责人", 培训类型="新办")
-    assert not any("偏离标准价" in s for s in check_record(ok, [], pricing=std))
-    # 没有标准价 / 有标准价但工种对不上 → 不报
-    assert not any("偏离标准价" in s for s in check_record(rec, [], pricing=None))
+    """统一标准价（合同价口径=缴费）：缴费偏离 → 红灯；公司收费不参与比对。"""
+    std = {("危化经营主要负责人", "新办"): 700.0}
+    rec = _rec(工种="危化经营主要负责人", 培训类型="新办")     # 缴费 700
+    assert not any("偏离合同标准价" in s for s in check_record(rec, [], pricing=std))
+    bad = _rec(缴费=1000, 公司收费=400, 返还=600,
+               工种="危化经营主要负责人", 培训类型="新办")
+    assert any("偏离合同标准价" in s for s in check_record(bad, [], pricing=std))
+    # 公司收费变化不触发（实收与合同价允许不同）
+    assert not any("偏离合同标准价" in s
+                   for s in check_record(_rec(公司收费=300, 返还=400), [],
+                                         pricing=std))
+    assert not any("偏离合同标准价" in s for s in check_record(rec, [], pricing=None))
 
 
 def test_render_daily():

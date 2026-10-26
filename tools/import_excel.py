@@ -106,13 +106,13 @@ def api(client, method, path, **kw):
 
 
 def build_pricing_rows(data, cell):
-    """从历史数据归纳「工种×培训类型」统一标准价（取众数），价格冲突写进备注。"""
+    """从历史数据归纳「工种×培训类型」合同标准价（以「缴费」为口径取众数）。"""
     from collections import Counter, defaultdict
     grouped = defaultdict(Counter)
     for row in data:
         job = str(cell(row, "工种") or "").strip()
         kind = str(cell(row, "培训类型") or "").strip()
-        price = cell(row, "公司收费")
+        price = cell(row, "缴费")          # 缴费 = 业务谈的合同价（统一价口径）
         if job and isinstance(price, (int, float)) and price > 0:
             grouped[(job, kind)][float(price)] += 1
     rows, conflicts = [], []

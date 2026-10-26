@@ -53,11 +53,11 @@ def check_record(rec: Dict, payments: List[Dict], pricing: Dict = None) -> List[
         if _num(缴费) != _num(公司收费) + _num(返还):
             issues.append(f"拆分不平：缴费 {_num(缴费):g} ≠ "
                           f"公司收费 {_num(公司收费):g} + 返还 {_num(返还):g}")
-    if pricing and 公司收费 not in (None, ""):
+    if pricing and 缴费 not in (None, ""):
         std = pricing.get((_norm(str(rec.get("工种") or "")),
                            _norm(str(rec.get("培训类型") or ""))))
-        if std is not None and abs(_num(公司收费) - std) > 0.01:
-            issues.append(f"公司收费 {_num(公司收费):g} 偏离标准价 {std:g}")
+        if std is not None and abs(_num(缴费) - std) > 0.01:
+            issues.append(f"缴费 {_num(缴费):g} 偏离合同标准价 {std:g}")
     if rec.get("缴费状态") == "已退" and paid > 0:
         issues.append("已退但存在正向收款")
     return issues

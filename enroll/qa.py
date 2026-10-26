@@ -15,12 +15,15 @@ from datetime import date, datetime
 from typing import Dict, List, Optional, Tuple
 
 from core.dictionaries import normalize as _norm
+from enroll.records import record_day
 from enroll.reminders import to_date
 
 _DEBT_WORDS = ("还欠多少", "欠多少", "欠款", "待收", "没交", "没缴费", "未缴费", "欠")
 _COUNT_WORDS = ("多少人", "几个人", "人数", "名单", "有哪些", "有谁", "谁还")
 _PAY_WORDS = ("收款", "收了", "入账", "到账")
 _STATUS_WORDS = ("状态", "情况", "怎么样")
+_EXAM_WORDS = ("考试时间", "什么时候考试", "哪天考试", "几号考试",
+               "考试是什么时候", "考试安排", "什么时候考", "几号考", "考试日期")
 
 _FILLER = ("的", "了", "呢", "吗", "请", "帮我", "查一下", "问一下", "?", "？",
            "，", ",", "。", " ", "　", "什么", "啥", "如何", "今天", "今日",
@@ -80,6 +83,58 @@ def _match(records, subject: str, groups: Dict[str, str]):
     return out
 
 
+def _exam_texts(sessions, names=None):
+    out = []
+    for s in sessions or []:
+        if names and _norm(str(s.get("班期名称", ""))) not in names:
+            continue
+        exam = to_date(s.get("考试日期")) or to_date(s.get("起始日期"))
+        if exam is None:
+            continue
+        loc = s.get("考点") or ""
+        out.append(f"{s.get('班期名称', '')}：{exam.isoformat()}"
+                   + (f"（{loc}）" if loc else ""))
+    return out
+
+
+def _exam_answer(text: str, store) -> Optional[str]:
+    """考试时间查询：按班期名、按人（关联班期）或直接列近期安排。"""
+    sessions = store.sessions() if hasattr(store, "sessions") else []
+    if not sessions:
+        return None
+    subject, _ = _strip_words(text, _EXAM_WORDS)
+    key = _norm(text)
+    hits = [s for s in sessions
+            if s.get("班期名称") and _norm(str(s.get("班期名称"))) in key]
+    if not hits and subject:
+        recs = _match(store.records(), subject, {})
+        if not recs:
+            return f"没有匹配「{subject}」的报名记录"
+        names = {_norm(str(r.get("班期") or "")) for r in recs if r.get("班期")}
+        days = {record_day(r) for r in recs if record_day(r)}
+        hits = [s for s in sessions
+                if _norm(str(s.get("班期名称", ""))) in names
+                or any(d and _norm(d) in _norm(str(s.get("班期名称", "")))
+                       for d in days)]
+        if not hits:
+            return (f"「{subject}」暂无班期/考试日期信息"
+                    f"（报名记录缺少登记日期或班期关联）")
+    if hits:
+        return "考试时间：\n" + "\n".join(_exam_texts(hits)[:5])
+    if not subject:                      # 没指名 → 列近期考试
+        today = date.today()
+        upcoming = []
+        for s in sessions:
+            d = to_date(s.get("考试日期")) or to_date(s.get("起始日期"))
+            if d and d >= today:
+                upcoming.append((d, s))
+        upcoming.sort(key=lambda x: x[0])
+        lines = _exam_texts([s for _, s in upcoming[:3]])
+        if lines:
+            return "近期考试安排：\n" + "\n".join(lines)
+    return None
+
+
 def answer(question: str, store) -> Optional[str]:
     text = (question or "").strip()
     if not text:
@@ -87,6 +142,12 @@ def answer(question: str, store) -> Optional[str]:
     records = store.records()
     payments = store.payments_by_key()
     groups = _company_group(store)
+
+    subject, _ = _strip_words(text, _EXAM_WORDS)
+    if any(w in text for w in _EXAM_WORDS):
+        exam = _exam_answer(text, store)
+        if exam:
+            return exam
 
     subject, debt = _strip_words(text, _DEBT_WORDS)
     if debt:
