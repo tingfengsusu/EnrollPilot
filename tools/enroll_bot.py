@@ -109,6 +109,48 @@ def check_config() -> int:
     return 0
 
 
+def _start_daily_push(store, channel, cfg: dict) -> None:
+    """每日定时推送：结算日报 + 到期的班期提醒（配置了 push_chat_id 才启动）。"""
+    import threading
+    import time as _time
+    from datetime import datetime, timedelta
+
+    settlement = cfg.get("settlement") or {}
+    push_at = str(settlement.get("daily_push") or "")
+    chat = str(settlement.get("push_chat_id") or "")
+    if not push_at or not chat:
+        print("[push] 未配置 settlement.push_chat_id，跳过每日推送")
+        return
+    try:
+        hh, mm = (int(x) for x in push_at.split(":"))
+    except ValueError:
+        print(f"[push] daily_push 格式应为 HH:MM，收到 {push_at!r}，跳过")
+        return
+
+    def loop():
+        from enroll.reminders import due_reminders, render_reminders
+        from enroll.settlement import render_daily
+        while True:
+            now = datetime.now()
+            target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+            if target <= now:
+                target += timedelta(days=1)
+            _time.sleep(max(1.0, (target - now).total_seconds()))
+            try:
+                text = render_daily(store.records(), store.payments_by_key())
+                items = due_reminders(store.records(), store.sessions(),
+                                      datetime.now().date())
+                if items:
+                    text += "\n" + render_reminders(items)
+                channel.send_text(chat, text)
+                print(f"[push] 已推送日报与提醒到 {chat}")
+            except Exception as e:  # noqa: BLE001 — 推送失败不影响收消息
+                print(f"[push] 推送失败：{e}")
+
+    threading.Thread(target=loop, daemon=True, name="daily-push").start()
+    print(f"[push] 每日 {push_at} 推送已启动 → {chat}")
+
+
 def listen() -> int:
     """真连模式：长连接收消息 → 聚合 → 抽取/指令 → bitable → 回推。"""
     if check_config():
@@ -126,8 +168,10 @@ def listen() -> int:
     store = BitableStore(client, dict(bitable["tables"]))
     runner = EnrollRunner(store, channel,
                           hold_seconds=float(feishu.get("merge_hold_seconds", 45)),
-                          dedupe_path=os.path.join(ROOT, "data", "runner_state.db"))
+                          dedupe_path=os.path.join(ROOT, "data", "runner_state.db"),
+                          export_dir=os.path.join(ROOT, "data", "exports"))
     channel.on_message = runner.on_message
+    _start_daily_push(store, channel, cfg)
     print("长连接已启动，等待群消息…（Ctrl+C 退出；图片 OCR 未配置时按提示走文本兜底）")
     try:
         channel.start(blocking=True)

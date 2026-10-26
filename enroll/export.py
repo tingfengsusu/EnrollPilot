@@ -80,6 +80,24 @@ def export_settlement(store, out_path: str, date: str = "") -> str:
     return _save(wb, out_path)
 
 
+def export_for_command(store, keyword: str, out_dir: str) -> str:
+    """群指令「导出 …」→ 生成对应 Excel，返回文件路径。
+
+    - ``导出 名单 [集团]`` → 报名名单（可按集团筛选）
+    - ``导出 结算 [日期]`` → 按期结算单
+    """
+    parts = (keyword or "").split()
+    os.makedirs(out_dir, exist_ok=True)
+    if parts and parts[0] == "结算":
+        date = parts[1] if len(parts) > 1 else ""
+        name = f"结算单_{date or '全量'}.xlsx"
+        return export_settlement(store, os.path.join(out_dir, name), date=date)
+    group = parts[1] if len(parts) > 1 and parts[0] == "名单" else (
+        parts[0] if parts and parts[0] != "名单" else "")
+    name = f"报名名单_{group or '全部'}.xlsx"
+    return export_roster(store, os.path.join(out_dir, name), group=group)
+
+
 def export_roster(store, out_path: str, group: str = "", period: str = "",
                   status_field: str = "", status_value: str = "") -> str:
     """名单导出：按集团（经公司表）/ 登记日期 / 任一状态字段筛选。

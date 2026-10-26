@@ -42,6 +42,9 @@ class DemoStore:
     def companies(self) -> List[Dict]:
         return self.tables["公司"]
 
+    def sessions(self) -> List[Dict]:
+        return self.tables["班期"]
+
     def find_by_key(self, key: str):
         from enroll.records import id_key
         if not key:

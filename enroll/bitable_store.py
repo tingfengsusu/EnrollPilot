@@ -113,6 +113,9 @@ class BitableStore:
     def companies(self) -> List[Dict]:
         return self._rows("公司")
 
+    def sessions(self) -> List[Dict]:
+        return self._rows("班期")
+
     def counts(self) -> Dict[str, int]:
         return {name: len(self._rows(name)) for name in self.tables_cfg}
 

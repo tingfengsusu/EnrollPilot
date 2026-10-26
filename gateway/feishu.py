@@ -249,6 +249,27 @@ class FeishuChannel(Channel):
             raise ChannelError("上传图片未返回 image_key")
         self._create_message(chat_id, "image", {"image_key": image_key})
 
+    def send_file(self, chat_id: str, file_path: str) -> None:
+        """回推文件（导出的 Excel）。file_type=stream 对 xlsx 可用。"""
+        from lark_oapi.api.im.v1 import (CreateFileRequest,
+                                         CreateFileRequestBody)
+
+        file_name = os.path.basename(file_path)
+        with open(file_path, "rb") as f:
+            body = (CreateFileRequestBody.builder()
+                    .file_type("stream")
+                    .file_name(file_name)
+                    .file(io.BytesIO(f.read()))
+                    .build())
+        response = self.client.im.v1.file.create(
+            CreateFileRequest.builder().request_body(body).build())
+        if not response or not getattr(response, "success", lambda: False)():
+            raise ChannelError(f"上传文件失败：{getattr(response, 'msg', '?')}")
+        file_key = getattr(response.data, "file_key", "") if response.data else ""
+        if not file_key:
+            raise ChannelError("上传文件未返回 file_key")
+        self._create_message(chat_id, "file", {"file_key": file_key})
+
     def _create_message(self, chat_id: str, msg_type: str,
                         content: Dict[str, Any]) -> None:
         from lark_oapi.api.im.v1 import (CreateMessageRequest,

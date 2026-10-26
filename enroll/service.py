@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Protocol
 
 from enroll.instructions import USAGE, Command
+from enroll.reminders import due_reminders, render_reminders
 from enroll.settlement import render_daily
 
 
@@ -66,6 +67,10 @@ def execute(store: StoreLike, cmd: Command, operator: str = "系统") -> str:
                          f"{r.get('工种', '')}｜缴费 {r.get('缴费', '-')}｜"
                          f"缴费状态 {r.get('缴费状态', '')}")
         return "\n".join(lines)
+    if cmd.action == "remind":
+        from datetime import date as _date
+        items = due_reminders(store.records(), store.sessions(), _date.today())
+        return render_reminders(items)
     if cmd.action == "settle":
         return render_daily(store.records(), store.payments_by_key(),
                             date=cmd.date or "今天")

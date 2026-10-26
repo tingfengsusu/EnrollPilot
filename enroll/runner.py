@@ -61,10 +61,11 @@ class MessageDedupe:
 
 class EnrollRunner:
     def __init__(self, store, channel, hold_seconds: float = 45.0, ocr=None,
-                 dedupe_path: str = ""):
+                 dedupe_path: str = "", export_dir: str = ""):
         self.store = store
         self.channel = channel
         self.ocr = ocr                    # callable(image_path) -> 识别文本；None = 未配置
+        self.export_dir = export_dir or os.path.join("data", "exports")
         self.dedupe = MessageDedupe(dedupe_path)
         # 本项目的"完整消息"= 有文字或有附件即可。FormPilot 的默认规则是「文字+附件齐全」
         # （学平险场景：品种关键词+照片），会把纯文字指令压 hold 秒——对群指令场景是错的。
@@ -104,6 +105,9 @@ class EnrollRunner:
             return
         cmd = parse(text)
         if cmd is not None:
+            if cmd.action == "export":
+                self._handle_export(cmd, chat)
+                return
             self.channel.send_text(chat, execute(self.store, cmd, operator=operator))
             return
         if looks_like_id_text(text):
@@ -111,6 +115,13 @@ class EnrollRunner:
                 self.store, text, operator=operator, source=message.channel or "群消息"))
             return
         self.channel.send_text(chat, "不是认识的指令。\n" + USAGE)
+
+    def _handle_export(self, cmd, chat: str) -> None:
+        """「导出 名单/结算」→ 生成 Excel 并发到当前会话。"""
+        from enroll.export import export_for_command
+        path = export_for_command(self.store, cmd.keyword, self.export_dir)
+        self.channel.send_text(chat, f"已生成：{os.path.basename(path)}")
+        self.channel.send_file(chat, path)
 
     def _handle_attachments(self, message, chat: str, operator: str) -> None:
         if self.ocr is None:

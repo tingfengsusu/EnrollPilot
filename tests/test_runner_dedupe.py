@@ -15,9 +15,13 @@ from gateway.models import InboundMessage
 class FakeChannel:
     def __init__(self):
         self.sent = []
+        self.files = []
 
     def send_text(self, chat_id, text):
         self.sent.append((chat_id, text))
+
+    def send_file(self, chat_id, path):
+        self.files.append((chat_id, path))
 
     def download_all(self, message):
         return []
@@ -64,9 +68,19 @@ def test_runner_text_only_no_hold_wait():
     assert len(channel.sent) == 1 and "结算日报" in channel.sent[0][1]
 
 
+def test_runner_export_command_sends_file():
+    channel = FakeChannel()
+    tmp = tempfile.mkdtemp()
+    runner = EnrollRunner(DemoStore().seed(), channel, export_dir=tmp)
+    runner.on_message(_msg("m4", "导出 名单 某集团集团"))
+    assert len(channel.files) == 1 and channel.files[0][1].endswith(".xlsx")
+    assert runner.dedupe.is_duplicate("m4") is True
+
+
 if __name__ == "__main__":
     test_dedupe_memory_ttl()
     test_dedupe_sqlite_survives_restart()
     test_runner_dedupes_and_replies_once()
     test_runner_text_only_no_hold_wait()
+    test_runner_export_command_sends_file()
     print("ok: test_runner_dedupe")
