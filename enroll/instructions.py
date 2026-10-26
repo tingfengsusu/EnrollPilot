@@ -29,8 +29,10 @@ STATUS_VERBS = {
 
 _NAME_RE = r"[\u4e00-\u9fa5]{2,4}"
 _VERB_RE = "|".join(STATUS_VERBS)
+#: 可选限定词：身份证后4位（6417）或 登记日期（6.23 / 6.23期）——重名时用来定位记录
+_QUAL_RE = r"(?:\s+(?P<qual>\d{1,2}\.\d{1,2}\s?期?|\d{4}))?"
 _SET_RE = re.compile(
-    rf"^({_NAME_RE})\s*({_VERB_RE})(?:\s*([0-9]+(?:\.[0-9]+)?))?$")
+    rf"^({_NAME_RE}){_QUAL_RE}\s*({_VERB_RE})(?:\s*([0-9]+(?:\.[0-9]+)?))?$")
 
 
 @dataclass
@@ -43,6 +45,7 @@ class Command:
     amount: Optional[float] = None   # 已缴费 N 的金额
     keyword: str = ""        # 查 / 导出 的筛选词
     date: str = ""           # 结算日期（空 = 今天）
+    qual: str = ""           # 重名限定：身份证后4位 / 登记日期（6.23）
 
 
 def parse(text) -> Optional[Command]:
@@ -66,13 +69,15 @@ def parse(text) -> Optional[Command]:
         return Command("export", raw=t, keyword=t[2:].strip())
     m = _SET_RE.match(t)
     if m:
-        name, verb, amount = m.group(1), m.group(2), m.group(3)
+        name, qual, verb, amount = m.group(1), m.group("qual") or "", m.group(3), m.group(4)
         return Command("set_status", raw=t, name=name, verb=verb,
                        field=STATUS_VERBS[verb],
+                       qual=qual.replace("期", "").strip(),
                        amount=float(amount) if amount else None)
     return None
 
 
 USAGE = ("支持的指令：状态 / 提醒 / 结算 [日期] / 记录 <姓名> / 查 <关键词> / "
          "导出 名单 [集团] / 导出 结算 [日期] /\n"
-         "<姓名> 已确认|已参加|未参加|已缴费 [金额]|已退|已开票")
+         "<姓名> 已确认|已参加|未参加|已缴费 [金额]|已退|已开票\n"
+         "重名时加限定：<姓名> <身份证后4位或登记日期 6.23> <状态>")

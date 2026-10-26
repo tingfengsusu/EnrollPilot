@@ -41,9 +41,11 @@ def execute(store: StoreLike, cmd: Command, operator: str = "系统") -> str:
     if cmd.action == "set_status":
         if cmd.amount is not None:
             # 「已缴费 700」：收款流水是事实源，由它顺带改缴费状态并写一条日志
-            ok, reply = store.add_payment(cmd.name, cmd.amount, operator)
+            ok, reply = store.add_payment(cmd.name, cmd.amount, operator,
+                                          qual=cmd.qual)
             return reply
-        ok, reply = store.set_status(cmd.name, cmd.verb, cmd.field, operator)
+        ok, reply = store.set_status(cmd.name, cmd.verb, cmd.field, operator,
+                                     qual=cmd.qual)
         return reply
     if cmd.action == "records":
         rows = store.timeline(cmd.name)

@@ -162,11 +162,25 @@ class BitableStore:
             "新值": "" if new is None else str(new), "触发来源": source}))
 
     # ------------------------------------------------------------------
+    def _pick(self, name: str, qual: str = ""):
+        """按姓名+限定词定位唯一记录。返回 (记录, 错误文案)；重名不猜。"""
+        from enroll.records import describe_candidates, qualify
+        hits = qualify(self.records(), name, qual)
+        if not hits:
+            return None, (f"没有找到「{name}」的报名记录，请先登记或检查姓名"
+                          + ("（限定词没匹配上）" if qual else ""))
+        if len(hits) > 1:
+            return None, (f"「{name}」有 {len(hits)} 条记录，请加限定词：\n"
+                          + describe_candidates(hits)
+                          + f"\n例：{name} <尾号或登记日期> 已缴费")
+        return hits[0], ""
+
     def set_status(self, name: str, verb: str, field: str,
-                   operator: str, source: str = "群指令") -> Tuple[bool, str]:
-        rec = self.find_record(name)
+                   operator: str, source: str = "群指令",
+                   qual: str = "") -> Tuple[bool, str]:
+        rec, err = self._pick(name, qual)
         if rec is None:
-            return False, f"没有找到「{name}」的报名记录，请先登记或检查姓名"
+            return False, err
         old = rec.get(field, "")
         self.update_fields(rec, {field: verb})
         self.log(name, "状态变更", field, old, verb, operator, source)
@@ -174,10 +188,10 @@ class BitableStore:
 
     def add_payment(self, name: str, amount: float, operator: str,
                     source: str = "群指令", method: str = "微信",
-                    payee: str = "业务员代收") -> Tuple[bool, str]:
-        rec = self.find_record(name)
+                    payee: str = "业务员代收", qual: str = "") -> Tuple[bool, str]:
+        rec, err = self._pick(name, qual)
         if rec is None:
-            return False, f"没有找到「{name}」的报名记录"
+            return False, err
         self.client.create_record(self._tid("收款"), self._prepare_for("收款", {
             "姓名": name, "金额": amount, "收款方式": method,
             "收款人类型": payee, "业务员": operator, "时间": now_str()}))

@@ -75,6 +75,29 @@ def test_store_roundtrip():
     assert len(reloaded.timeline("张莹")) == 1
 
 
+def test_duplicate_name_requires_qualifier():
+    """真实数据里有重名：不加限定词不猜，加尾号/日期才更新。"""
+    store = _store()
+    store.records().append({           # 第二个李蕾（不同尾号/日期）
+        "姓名": "李蕾", "身份证号": "410102199001010012", "登记日期": "6月22日",
+        "报名状态": "已确认", "缴费状态": "未收", "开票状态": "未开"})
+    reply = execute(store, parse("李蕾 已开票"), operator="测试")
+    assert "2 条记录" in reply and "0004" in reply and "0012" in reply
+
+    reply2 = execute(store, parse("李蕾 0012 已开票"), operator="测试")
+    assert "未开 → 已开票" in reply2
+    second = [r for r in store.records()
+              if r.get("身份证号", "").endswith("0012")][0]
+    first = [r for r in store.records()
+             if r.get("身份证号", "").endswith("0004")][0]
+    assert second["开票状态"] == "已开票"
+    assert first["开票状态"] == "已开"          # 原记录未被误改
+
+    # 用登记日期限定同样能定位
+    execute(store, parse("李蕾 6.22 已确认"), operator="测试")
+    assert second["报名状态"] == "已确认"
+
+
 if __name__ == "__main__":
     test_status_and_counts()
     test_set_status_with_payment_flow()
@@ -83,4 +106,5 @@ if __name__ == "__main__":
     test_export_and_unknown()
     test_not_found_is_honest()
     test_store_roundtrip()
+    test_duplicate_name_requires_qualifier()
     print("ok: test_service")

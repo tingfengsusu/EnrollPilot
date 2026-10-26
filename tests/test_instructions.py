@@ -9,6 +9,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from enroll.instructions import USAGE, parse
 
 
+def test_set_status_with_qualifier():
+    """重名限定词：身份证后4位或登记日期（6.23 / 6.23期）。"""
+    cmd = parse("朱军亮 6417 已缴费 700")
+    assert (cmd.name, cmd.qual, cmd.verb, cmd.amount) == ("朱军亮", "6417", "已缴费", 700.0)
+    assert parse("朱军亮 6.23 已开票").qual == "6.23"
+    assert parse("朱军亮 6.23期 已开票").qual == "6.23"
+    assert parse("朱军亮已开票").qual == ""          # 不带限定词仍可用
+
+
 def test_simple_commands():
     assert parse("状态").action == "status"
     cmd = parse("结算 6.24")
@@ -52,6 +61,7 @@ def test_two_char_and_four_char_names():
 if __name__ == "__main__":
     test_simple_commands()
     test_set_status()
+    test_set_status_with_qualifier()
     test_unknown_returns_none()
     test_two_char_and_four_char_names()
     print("ok: test_instructions")

@@ -82,3 +82,51 @@ def validate(rec: Dict) -> List[str]:
     if phone and not _PHONE_RE.match(str(phone)):
         issues.append(f"手机号格式异常：{phone}")
     return issues
+
+
+def record_day(rec: Dict) -> str:
+    """记录日期 → "M.D"（登记日期优先，毫秒时间戳/字符串都兼容）。"""
+    from datetime import datetime
+    value = rec.get("登记日期") or rec.get("参加日期")
+    if value in (None, ""):
+        return ""
+    dt = None
+    if isinstance(value, (int, float)):
+        dt = datetime.fromtimestamp(value / 1000)
+    else:
+        text = str(value).strip()
+        for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+            try:
+                dt = datetime.strptime(text, fmt)
+                break
+            except ValueError:
+                continue
+        if dt is None:
+            m = re.fullmatch(r"(\d{1,2})\s*月\s*(\d{1,2})\s*日", text)
+            if m:
+                return f"{int(m.group(1))}.{int(m.group(2))}"
+    return f"{dt.month}.{dt.day}" if dt else ""
+
+
+def qualify(records: List[Dict], name: str, qual: str = "") -> List[Dict]:
+    """按姓名筛记录，并用限定词收窄：qual=4位数字 → 身份证尾号；qual=M.D → 登记日期。"""
+    hits = [r for r in records if r.get("姓名") == name]
+    if qual and hits:
+        q = qual.strip()
+        if re.fullmatch(r"\d{4}", q):
+            hits = [r for r in hits if str(r.get("身份证号", "")).endswith(q)]
+        else:
+            hits = [r for r in hits if record_day(r) == q]
+    return hits
+
+
+def describe_candidates(records: List[Dict]) -> str:
+    """重名候选说明（尾号/日期/状态），让用户加限定词。"""
+    lines = []
+    for rec in records[:6]:
+        id_no = str(rec.get("身份证号", ""))
+        tail = id_no[-4:] if len(id_no) >= 4 else "????"
+        day = record_day(rec) or "日期未知"
+        lines.append(f"{rec.get('姓名')}（尾号 {tail}，{day}，"
+                     f"报名{rec.get('报名状态', '')}/缴费{rec.get('缴费状态', '')}）")
+    return "；\n".join(lines)
