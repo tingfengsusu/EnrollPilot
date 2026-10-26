@@ -51,7 +51,8 @@ python -m venv .venv
   应用发布（长连接 + 收消息事件 + 4 项权限）、`setup_tables.py` 建五张表、冒烟测试、
   真实后端端到端（登记→收款→变更日志→时间线→结算）全部通过。**注意：飞书个人版
   （`*.user.feishu.cn`）按平台策略不开放自建应用 API（21001），必须用团队/企业租户。**
-- **M2（桌面入口 v1 ✅）**：`--desktop` 剪贴板双模式登记台，与机器人同库同路径；exe 打包待做（PyInstaller）
+- **M2（桌面入口 ✅）**：`--desktop` 剪贴板双模式登记台，与机器人同库同路径；**exe 已打包**
+  （`dist/EnrollPilot/EnrollPilot.exe`，`ENROLLPILOT_SMOKE=1` 自检退出码 0；外观交互待真机人工验证）
 - **M3（日志浮现，部分 ✅）**：变更日志落库 + 群查询指令「记录 <姓名>」+ 桌面详情时间线已通；
   群卡片渲染待消息联调
 - **M4（导出 ✅ + 推送待联调）**：`export_settlement` 按期结算单 / `export_roster` 按集团·状态名单

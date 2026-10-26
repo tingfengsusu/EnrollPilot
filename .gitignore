@@ -16,3 +16,8 @@ data/*
 .vscode/
 Thumbs.db
 .DS_Store
+
+# PyInstaller 打包产物
+build/
+dist/
+*.spec

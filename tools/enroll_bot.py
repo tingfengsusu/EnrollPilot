@@ -125,7 +125,8 @@ def listen() -> int:
     client = BitableClient(feishu["app_id"], feishu["app_secret"], bitable["app_token"])
     store = BitableStore(client, dict(bitable["tables"]))
     runner = EnrollRunner(store, channel,
-                          hold_seconds=float(feishu.get("merge_hold_seconds", 45)))
+                          hold_seconds=float(feishu.get("merge_hold_seconds", 45)),
+                          dedupe_path=os.path.join(ROOT, "data", "runner_state.db"))
     channel.on_message = runner.on_message
     print("长连接已启动，等待群消息…（Ctrl+C 退出；图片 OCR 未配置时按提示走文本兜底）")
     try:

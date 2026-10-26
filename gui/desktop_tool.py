@@ -18,7 +18,8 @@ from __future__ import annotations
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = (os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
+        else os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
@@ -191,6 +192,10 @@ def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     window = DesktopTool()
     window.show()
+    if os.environ.get("ENROLLPILOT_SMOKE") == "1":
+        # 打包/CI 自检：开窗 → 1.5 秒后退出（用于验证 exe 能起得来）
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(1500, app.quit)
     return app.exec_()
 
 
