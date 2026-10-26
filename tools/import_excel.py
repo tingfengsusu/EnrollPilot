@@ -105,6 +105,29 @@ def api(client, method, path, **kw):
     return payload.get("data", {})
 
 
+def build_pricing_rows(data, cell):
+    """从历史数据归纳「工种×培训类型」统一标准价（取众数），价格冲突写进备注。"""
+    from collections import Counter, defaultdict
+    grouped = defaultdict(Counter)
+    for row in data:
+        job = str(cell(row, "工种") or "").strip()
+        kind = str(cell(row, "培训类型") or "").strip()
+        price = cell(row, "公司收费")
+        if job and isinstance(price, (int, float)) and price > 0:
+            grouped[(job, kind)][float(price)] += 1
+    rows, conflicts = [], []
+    for (job, kind), counter in grouped.items():
+        mode_price, _ = counter.most_common(1)[0]
+        note = ""
+        if len(counter) > 1:
+            note = "历史价：" + "、".join(f"{p:g}×{c}" for p, c in counter.most_common(5))
+            conflicts.append((job, kind, note))
+        rows.append({"工种": job,
+                     "培训类型": kind if kind in ("新办", "复审", "换证") else "其他",
+                     "标准价": mode_price, "备注": note})
+    return rows, conflicts
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--file", required=True)
@@ -207,6 +230,20 @@ def main():
                     for title, exam in sessions.items()]
     session_ids = batch_create(tables["班期"], session_rows, "班期名称")
     print(f"公司/班期已建：{len(company_ids)} 家 / {len(session_ids)} 期")
+
+    # —— 收费标准（统一价：工种×培训类型 取历史众数）——
+    if "收费标准" in tables:
+        existing = list(client.list_records(tables["收费标准"]))
+        if existing:
+            print(f"收费标准已有 {len(existing)} 条，跳过种子")
+        else:
+            pricing_rows, conflicts = build_pricing_rows(data, cell)
+            if pricing_rows:
+                client.batch_create(tables["收费标准"],
+                                    [{"fields": r} for r in pricing_rows])
+                print(f"收费标准已种子 {len(pricing_rows)} 条")
+                for job, kind, note in conflicts:
+                    print(f"  [价格冲突] {job}/{kind}: {note}")
 
     # —— 探测关联字段写入格式（不同租户/版本有差异）——
     probe_link = None

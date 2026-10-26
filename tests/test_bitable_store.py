@@ -105,6 +105,20 @@ def test_filter_unknown_fields():
     assert sent == {"姓名": "王五", "手机号": "18800000000"}
 
 
+def test_payments_by_record_groups_by_link():
+    """收款按关联报名记录 ID 归组（重名场景唯一正确口径）。"""
+    store = _store()
+    store.client.rows["tB"] = [
+        {"姓名": "李蕾", "金额": 700,
+         "关联报名记录": [{"record_ids": ["r0"], "table_id": "tA", "type": "text"}]},
+        {"姓名": "李蕾", "金额": 300,
+         "关联报名记录": [{"record_ids": ["r9"], "table_id": "tA", "type": "text"}]},
+    ]
+    grouped = store.payments_by_record()
+    assert [p["金额"] for p in grouped["r0"]] == [700]
+    assert [p["金额"] for p in grouped["r9"]] == [300]
+
+
 def test_timeline_sorted_desc():
     store = _store()
     store.client.rows["tC"] = [
@@ -123,5 +137,6 @@ if __name__ == "__main__":
     test_add_payment_creates_flow()
     test_find_by_key_and_record()
     test_filter_unknown_fields()
+    test_payments_by_record_groups_by_link()
     test_timeline_sorted_desc()
     print("ok: test_bitable_store")

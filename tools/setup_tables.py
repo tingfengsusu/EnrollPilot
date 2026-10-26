@@ -121,10 +121,18 @@ def main():
         {"field_name": "考试日期", "type": T_DATE},
         {"field_name": "起始日期", "type": T_DATE},
         {"field_name": "结束日期", "type": T_DATE},
+        {"field_name": "考点", "type": T_TEXT},
+        {"field_name": "考试科目", "type": T_TEXT},
         {"field_name": "课程", "type": T_TEXT},
         sel("状态", "筹备", "报名中", "已开班", "已结束"),
         {"field_name": "名额", "type": T_NUMBER},
         {"field_name": "负责业务员", "type": T_TEXT},
+    ])
+    create_table("收费标准", [
+        {"field_name": "工种", "type": T_TEXT},
+        sel("培训类型", "新办", "复审", "换证", "其他"),
+        {"field_name": "标准价", "type": T_NUMBER},
+        {"field_name": "备注", "type": T_TEXT},
     ])
     create_table("报名记录", [
         {"field_name": "姓名", "type": T_TEXT},

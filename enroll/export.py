@@ -53,7 +53,17 @@ def _save(wb: Workbook, out_path: str) -> str:
 
 def export_settlement(store, out_path: str, date: str = "") -> str:
     """按期结算单：一行一人，末尾合计。``date`` 非空时只导该登记日期。"""
-    payments = store.payments_by_key()
+    from enroll.settlement import pricing_map
+    if hasattr(store, "payments_by_record"):      # 真连：按记录 ID 归组（重名安全）
+        payments = store.payments_by_record()
+        key_of = lambda rec: rec.get("_record_id", "")   # noqa: E731
+    else:
+        payments = store.payments_by_key()
+        key_of = lambda rec: rec.get("姓名", "")          # noqa: E731
+    try:
+        pricing = pricing_map(store.pricing()) if hasattr(store, "pricing") else {}
+    except Exception:  # noqa: BLE001
+        pricing = {}
     rows: List[List] = []
     totals = [0.0, 0.0, 0.0]
     idx = 0
@@ -61,7 +71,7 @@ def export_settlement(store, out_path: str, date: str = "") -> str:
         if date and rec.get("登记日期", "") != date:
             continue
         idx += 1
-        issues = check_record(rec, payments.get(rec.get("姓名", ""), []))
+        issues = check_record(rec, payments.get(key_of(rec), []), pricing)
         rows.append([idx, rec.get("姓名"), rec.get("公司"), rec.get("人员类别"),
                      rec.get("工种"), rec.get("培训类型"), rec.get("缴费"),
                      rec.get("公司收费"), rec.get("返还"), rec.get("缴费状态"),

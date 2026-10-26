@@ -53,6 +53,17 @@ def test_summarize_filters_by_date():
     assert s["新增人数"] == 1 and s["待收"] == []
 
 
+def test_price_deviation():
+    """统一标准价：公司收费偏离「工种×培训类型」标准价 → 红灯。"""
+    std = {("危化经营主要负责人", "新办"): 450.0}
+    rec = _rec(工种="危化经营主要负责人", 培训类型="新办")
+    assert any("偏离标准价" in s for s in check_record(rec, [], pricing=std))
+    ok = _rec(公司收费=450, 返还=250, 工种="危化经营主要负责人", 培训类型="新办")
+    assert not any("偏离标准价" in s for s in check_record(ok, [], pricing=std))
+    # 没有标准价 / 有标准价但工种对不上 → 不报
+    assert not any("偏离标准价" in s for s in check_record(rec, [], pricing=None))
+
+
 def test_render_daily():
     records = [_rec(), _rec(姓名="张莹")]
     text = render_daily(records, {"李蕾": [{"金额": 700}]}, date="6月21日")
@@ -68,5 +79,6 @@ if __name__ == "__main__":
     test_check_record_issues()
     test_summarize_only_counts_paid()
     test_summarize_filters_by_date()
+    test_price_deviation()
     test_render_daily()
     print("ok: test_settlement")

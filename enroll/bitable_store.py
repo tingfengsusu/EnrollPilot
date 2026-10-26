@@ -116,6 +116,9 @@ class BitableStore:
     def sessions(self) -> List[Dict]:
         return self._rows("班期")
 
+    def pricing(self) -> List[Dict]:
+        return self._rows("收费标准") if "收费标准" in self.tables_cfg else []
+
     def counts(self) -> Dict[str, int]:
         return {name: len(self._rows(name)) for name in self.tables_cfg}
 
@@ -123,6 +126,27 @@ class BitableStore:
         grouped: Dict[str, List[Dict]] = {}
         for p in self._rows("收款"):
             grouped.setdefault(str(p.get("姓名", "")), []).append(p)
+        return grouped
+
+    def _rows_raw(self, table: str) -> List[Dict]:
+        """保留原始字段结构（关联字段需要 record_ids，不能拍平）。"""
+        rows = []
+        for item in self.client.list_records(self._tid(table)):
+            rec = dict(item.get("fields") or {})
+            rec["_record_id"] = item.get("record_id")
+            rows.append(rec)
+        return rows
+
+    def payments_by_record(self) -> Dict[str, List[Dict]]:
+        """收款流水按关联的报名记录 ID 归组（重名场景的唯一正确口径）。"""
+        grouped: Dict[str, List[Dict]] = {}
+        for p in self._rows_raw("收款"):
+            flows = []
+            for item in p.get("关联报名记录") or []:
+                if isinstance(item, dict):
+                    flows.extend(item.get("record_ids") or [])
+            for rid in flows or [""]:
+                grouped.setdefault(rid, []).append(p)
         return grouped
 
     def find_record(self, name: str) -> Optional[Dict]:

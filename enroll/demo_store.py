@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 #: 五张表（设计文档 二）：报名记录 / 收款 / 变更日志 / 公司 / 班期
-_EMPTY = {"报名记录": [], "收款": [], "变更日志": [], "公司": [], "班期": []}
+_EMPTY = {"报名记录": [], "收款": [], "变更日志": [], "公司": [], "班期": [], "收费标准": []}
 
 
 def now_str() -> str:
@@ -44,6 +44,9 @@ class DemoStore:
 
     def sessions(self) -> List[Dict]:
         return self.tables["班期"]
+
+    def pricing(self) -> List[Dict]:
+        return self.tables.setdefault("收费标准", [])
 
     def find_by_key(self, key: str):
         from enroll.records import id_key
@@ -85,7 +88,12 @@ class DemoStore:
              "所属集团": "某集团集团"},
             {"公司全名": "某集团（中小拖）", "简称": "某集团（中小拖）", "所属集团": "某集团集团"},
         ]
-        self.tables["班期"] = [{"班期名称": "26.6.24 期", "参加日期": "2026-06-24"}]
+        self.tables["班期"] = [{"班期名称": "26.6.24 期", "考试日期": "2026-06-24",
+                               "起始日期": "2026-06-24", "状态": "已结束"}]
+        self.tables["收费标准"] = [
+            {"工种": "危化经营主要负责人", "培训类型": "新办", "标准价": 400},
+            {"工种": "叉车", "培训类型": "新办", "标准价": 400},
+        ]
         self.records().extend([
             {"姓名": "李蕾", "手机号": "18800000000", "身份证号": "410102199001010004",
              "公司": "某集团（中小拖）", "人员类别": "主要负责人", "工种": "危化经营主要负责人",
