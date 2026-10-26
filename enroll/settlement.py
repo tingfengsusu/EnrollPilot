@@ -132,7 +132,9 @@ def render_daily(records: List[Dict], payments_by_key: Dict[str, List[Dict]],
              f"公司应留存 {s['公司应留存']:g} 元（公司收费 {s['总公司收费']:g} − "
              f"返还 {s['总返还']:g}）"]
     if s["待收"]:
-        lines.append("待收：" + "、".join(f"{n} {_num(v):g}元" for n, v in s["待收"]))
+        names = "、".join(f"{n} {_num(v):g}元" for n, v in s["待收"][:12])
+        more = f" …其余 {len(s['待收']) - 12} 人" if len(s["待收"]) > 12 else ""
+        lines.append(f"待收 {len(s['待收'])} 人：{names}{more}")
     if s["差异"]:
         lines.append(f"差异（需人工处理，共 {len(s['差异'])} 条）：")
         lines += [f"  ⚠ {name}：{msg}" for name, msg in s["差异"][:12]]

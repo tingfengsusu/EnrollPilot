@@ -79,7 +79,7 @@ def test_salesperson_accounts():
 def test_render_daily():
     records = [_rec(), _rec(姓名="张莹")]
     text = render_daily(records, {"李蕾": [{"金额": 700}]}, date="6月21日")
-    assert "结算日报 6月21日" in text and "待收：张莹 700元" in text
+    assert "结算日报 6月21日" in text and "待收 1 人：张莹 700元" in text
     assert "公司应留存 400" in text
     bad = _rec(返还=350)
     text2 = render_daily([bad], {"李蕾": [{"金额": 700}]}, date="6月21日")
