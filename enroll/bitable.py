@@ -123,6 +123,24 @@ class BitableClient:
             self._records_url(table_id, f"/{record_id}"),
             headers=self._headers(), json={"fields": fields}))
 
+    def list_fields(self, table_id: str) -> List[Dict]:
+        """拉表结构（字段清单，用于写前校验字段名，防 FieldNameNotFound）。"""
+        items: List[Dict] = []
+        page_token = ""
+        while True:
+            params: Dict[str, Any] = {"page_size": 100}
+            if page_token:
+                params["page_token"] = page_token
+            payload = _unwrap(self.session.get(
+                f"{self.base_url}/bitable/v1/apps/{self.app_token}"
+                f"/tables/{table_id}/fields",
+                headers=self._headers(), params=params))
+            data = payload.get("data", {})
+            items.extend(data.get("items") or [])
+            if not data.get("has_more"):
+                return items
+            page_token = data.get("page_token", "")
+
     def batch_create(self, table_id: str, records: List[Dict]) -> int:
         """批量新建（自动分批），返回总条数。"""
         done = 0

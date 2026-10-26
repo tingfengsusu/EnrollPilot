@@ -62,6 +62,19 @@ def test_missing_fields_warn():
     assert r.fields["姓名"] == "李四"
 
 
+def test_single_line_multiple_labels():
+    """换行被客户端吞掉的单行多标签文本也能拆开解析（实测网页编辑器会吞换行）。"""
+    text = ("姓名：测试甲性别：男出生：1990年1月1日住址：北京市海淀区清华园1号"
+            "公民身份号码：" + ID_MALE)
+    r = parse_id_text(text)
+    assert r.fields["姓名"] == "测试甲"
+    assert r.fields["性别"] == "男"
+    assert r.fields["出生日期"] == "1990-01-01"
+    assert "清华园" in r.fields.get("住址", "")
+    assert r.fields["身份证号"] == ID_MALE
+    assert not any("未识别出姓名" in w for w in r.warnings)
+
+
 def test_looks_like_id_text():
     assert looks_like_id_text(WECHAT_TEXT)
     assert looks_like_id_text("身份证号：410102199001010012")
@@ -74,5 +87,6 @@ if __name__ == "__main__":
     test_label_colon_form_clean()
     test_cross_check_reports_only()
     test_missing_fields_warn()
+    test_single_line_multiple_labels()
     test_looks_like_id_text()
     print("ok: test_extract")

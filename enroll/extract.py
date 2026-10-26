@@ -51,8 +51,22 @@ def _birth_to_iso(year: str, month: str, day: str) -> str:
     return f"{year}-{int(month):02d}-{int(day):02d}"
 
 
+def _split_inline_labels(text: str) -> str:
+    """单行多标签文本（换行被客户端吞掉时）按标签边界拆行。
+
+    例：``姓名：张三性别：男公民身份号码：5103…`` →
+    ``姓名：张三\n性别：男\n公民身份号码：5103…``
+    """
+    if "\n" in text:
+        return text
+    return re.sub(
+        r"(?<!^)(?=(?:姓名|性别|出生|住址|民族|公民身份号码|身份证号码|身份证号)\s*[：:])",
+        "\n", text)
+
+
 def parse_id_text(text: str) -> ExtractResult:
     """把身份证识别文本解析成结构化字段 + 存疑清单。"""
+    text = _split_inline_labels(text or "")
     result = ExtractResult()
     fields, warnings = result.fields, result.warnings
     addr_parts: List[str] = []

@@ -11,6 +11,14 @@ from enroll.bitable_store import BitableStore, _plain
 TABLES = {"报名记录": "tA", "收款": "tB", "变更日志": "tC", "公司": "tD", "班期": "tE"}
 ID_MALE = "410102199001010012"
 
+#: 模拟表结构（字段名白名单）
+FIELDS = {
+    "tA": ["姓名", "身份证号", "手机号", "缴费状态", "报名状态", "开票状态",
+           "登记日期", "登记渠道", "备注"],
+    "tB": ["姓名", "金额", "收款方式", "收款人类型", "业务员", "时间"],
+    "tC": ["姓名", "时间", "操作人", "变更类型", "字段", "旧值", "新值", "触发来源"],
+}
+
 
 class FakeClient:
     def __init__(self, rows_by_table):
@@ -21,6 +29,9 @@ class FakeClient:
     def list_records(self, table_id):
         for i, fields in enumerate(self.rows.get(table_id, [])):
             yield {"record_id": f"r{i}", "fields": fields}
+
+    def list_fields(self, table_id):
+        return [{"field_name": n} for n in FIELDS.get(table_id, [])]
 
     def create_record(self, table_id, fields):
         self.created.append((table_id, fields))
@@ -86,6 +97,14 @@ def test_find_by_key_and_record():
     assert store.find_by_key("") is None
 
 
+def test_filter_unknown_fields():
+    """表里没有的字段被过滤（实测 1254045 FieldNameNotFound 会炸整条记录）。"""
+    store = _store()
+    store.create({"姓名": "王五", "住址": "北京市海淀区", "手机号": "18800000000"})
+    sent = store.client.created[-1][1]
+    assert sent == {"姓名": "王五", "手机号": "18800000000"}
+
+
 def test_timeline_sorted_desc():
     store = _store()
     store.client.rows["tC"] = [
@@ -103,5 +122,6 @@ if __name__ == "__main__":
     test_set_status_updates_and_logs()
     test_add_payment_creates_flow()
     test_find_by_key_and_record()
+    test_filter_unknown_fields()
     test_timeline_sorted_desc()
     print("ok: test_bitable_store")

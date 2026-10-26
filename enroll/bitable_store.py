@@ -66,9 +66,35 @@ class BitableStore:
     def __init__(self, client, tables: Dict[str, str]):
         self.client = client
         self.tables_cfg = tables
+        self._schema: Dict[str, Optional[set]] = {}
 
     def _tid(self, name: str) -> str:
         return self.tables_cfg[name]
+
+    def _allowed(self, table: str) -> Optional[set]:
+        """表的字段名白名单（懒加载 + 缓存）。取不到时返回 None（不过滤）。"""
+        if table not in self._schema:
+            try:
+                self._schema[table] = {f.get("field_name") for f in
+                                       self.client.list_fields(self._tid(table))}
+            except Exception:  # noqa: BLE001 — 结构拉取失败不阻塞写入
+                self._schema[table] = None
+        return self._schema[table]
+
+    def _prepare_for(self, table: str, fields: Dict) -> Dict:
+        """落库前处理：拍平内部字段、日期转毫秒、剔除表里不存在的字段。
+
+        实测踩过：抽取结果多出表里没有的字段 → 整条记录写入报 1254045
+        FieldNameNotFound。这里按表结构过滤并告警，字段级失败不拖垮整条。
+        """
+        payload = _prepare(fields)
+        allowed = self._allowed(table)
+        if allowed is not None:
+            dropped = [k for k in payload if k not in allowed]
+            if dropped:
+                print(f"[bitable_store] {table} 忽略未知字段：{dropped}")
+                payload = {k: v for k, v in payload.items() if k in allowed}
+        return payload
 
     def _rows(self, table: str) -> List[Dict]:
         rows = []
@@ -111,14 +137,14 @@ class BitableStore:
         return None
 
     def create(self, fields: Dict) -> Dict:
-        payload = _prepare(fields)
+        payload = self._prepare_for("报名记录", fields)
         rid = self.client.create_record(self._tid("报名记录"), payload)
         rec = dict(fields)
         rec["_record_id"] = rid
         return rec
 
     def update_fields(self, rec: Dict, fields: Dict) -> None:
-        payload = _prepare(fields)
+        payload = self._prepare_for("报名记录", fields)
         rid = rec.get("_record_id")
         if not rid:
             raise ValueError("记录缺少 _record_id，无法更新（先 records()/find_record() 取回）")
@@ -127,7 +153,7 @@ class BitableStore:
 
     def log(self, name: str, ctype: str, field: str, old, new,
             operator: str, source: str) -> None:
-        self.client.create_record(self._tid("变更日志"), _prepare({
+        self.client.create_record(self._tid("变更日志"), self._prepare_for("变更日志", {
             "姓名": name, "时间": now_str(), "操作人": operator,
             "变更类型": ctype, "字段": field, "旧值": "" if old is None else str(old),
             "新值": "" if new is None else str(new), "触发来源": source}))
@@ -149,7 +175,7 @@ class BitableStore:
         rec = self.find_record(name)
         if rec is None:
             return False, f"没有找到「{name}」的报名记录"
-        self.client.create_record(self._tid("收款"), _prepare({
+        self.client.create_record(self._tid("收款"), self._prepare_for("收款", {
             "姓名": name, "金额": amount, "收款方式": method,
             "收款人类型": payee, "业务员": operator, "时间": now_str()}))
         old = rec.get("缴费状态", "")

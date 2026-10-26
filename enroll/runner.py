@@ -3,11 +3,12 @@
 - 文本走白名单指令（instructions.parse）或身份证识别文本自动登记（intake）；
 - 图片走 ``ocr`` 回调（未配置则提示"复制图片内容"的人肉兜底）；
 - 文本+图片两条事件先过 MessageAggregator 合并窗口（FormPilot 实测：飞书会拆开推）；
+- **重复投递去重**（实测：同一 msg_id 会被飞书重推一次，须幂等，否则会双回复）；
 - 单条消息处理失败不拖垮长连接：异常转文本回推。
 """
 from __future__ import annotations
 
-
+import time
 
 from gateway.aggregator import MessageAggregator
 from enroll.extract import looks_like_id_text
@@ -21,11 +22,29 @@ class EnrollRunner:
         self.store = store
         self.channel = channel
         self.ocr = ocr                    # callable(image_path) -> 识别文本；None = 未配置
+        # 本项目的"完整消息"= 有文字或有附件即可。FormPilot 的默认规则是「文字+附件齐全」
+        # （学平险场景：品种关键词+照片），会把纯文字指令压 hold 秒——对群指令场景是错的。
         self.aggregator = MessageAggregator(
-            on_complete=self.handle_message, hold_seconds=hold_seconds)
+            on_complete=self.handle_message, hold_seconds=hold_seconds,
+            is_complete=lambda m: bool((m.text or "").strip()) or bool(m.attachments))
+        self._seen: dict = {}             # msg_id -> 处理时间（防重复投递）
+        self._seen_ttl = 600.0
 
     # 长连接回调：只进聚合器，不做重活（避免平台重推）
     def on_message(self, message) -> None:
+        mid = message.msg_id
+        now = time.time()
+        if mid:
+            stamp = self._seen.get(mid)
+            if stamp is not None and now - stamp < self._seen_ttl:
+                print(f"[runner] 忽略重复投递 msg_id={mid}")
+                return
+            self._seen[mid] = now
+            if len(self._seen) > 500:     # 定期清理过期键
+                self._seen = {k: v for k, v in self._seen.items()
+                              if now - v < self._seen_ttl}
+        print(f"[runner] 收到消息 msg_id={mid} type={message.message_type} "
+              f"attachments={len(message.attachments)} text={(message.text or '')[:40]!r}")
         self.aggregator.add(message)
 
     def handle_message(self, message) -> None:
