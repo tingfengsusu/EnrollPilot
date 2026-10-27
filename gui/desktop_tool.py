@@ -115,7 +115,7 @@ class DesktopTool(QMainWindow):
             backend = default_backend
         self.backend = backend
         self.ocr = make_ocr_from_config()
-        self.setWindowTitle(f"EnrollPilot 培训报名结算助手 — {backend}")
+        self.setWindowTitle(f"EnrollPilot 台账自动化 — {backend}")
         self.resize(1180, 760)
         self.setStyleSheet(STYLE)
         self._build_ui()

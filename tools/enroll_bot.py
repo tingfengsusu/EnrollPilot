@@ -256,7 +256,7 @@ def desktop() -> int:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="EnrollPilot 培训报名结算助手")
+    ap = argparse.ArgumentParser(description="EnrollPilot 台账自动化")
     ap.add_argument("--demo", action="store_true", help="离线闭环演示（不联网）")
     ap.add_argument("--check-config", action="store_true", help="体检 config/enroll.yaml")
     ap.add_argument("--desktop", action="store_true", help="桌面登记台（剪贴板入口B）")
